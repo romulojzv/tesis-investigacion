@@ -1,0 +1,11 @@
+﻿venv/
+node_modules/
+*.csv
+*.sqlite3
+data/*
+!data/muestra_pequena.json
+*.h5
+*.pt
+*.hex
+*.class
+.env
