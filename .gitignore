@@ -2,20 +2,23 @@
 .dart_tool/
 .packages
 build/
-*.apk
-*.aab
+.flutter-plugins
+.flutter-plugins-dependencies
 
-# Python / IA
-venv/
-__pycache__/
-*.h5
-*.pt
-*.env
+# IDE
+.idea/
+*.iml
+.vscode/
 
-# Datos pesados
-data/*
-!data/muestra_pequena.json
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
 
-# Claves de Firebase
-google-services.json
-GoogleService-Info.plist
+# Archivos temporales
+*.log
+*.tmp
+
+# Windows
+Thumbs.db
+Desktop.ini
