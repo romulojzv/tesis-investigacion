@@ -22,3 +22,10 @@ build/
 # Windows
 Thumbs.db
 Desktop.ini
+
+# Node / Supabase CLI
+node_modules/
+supabase/.temp/
+
+# npm
+npm-debug.log*

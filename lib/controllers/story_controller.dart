@@ -1,100 +1,336 @@
+import 'dart:typed_data';
+
+import '../models/character_customization.dart';
 import '../models/cuento.dart';
 import '../models/decision_narrativa.dart';
 import '../models/escena.dart';
+import '../models/generated_scene.dart';
+import '../models/pdf_story_data.dart';
+
 import '../repositories/cuento_repository.dart';
+
+import '../services/ai_service.dart';
+import '../services/contexto_narrativo_service.dart';
+import '../services/document_service.dart';
+import '../models/narrativa_config.dart';
+import '../services/image_service.dart';
 import '../services/narrativa_service.dart';
 
 class StoryController {
+  final AiService aiService;
   final NarrativaService narrativaService;
   final CuentoRepository cuentoRepository;
+  final DocumentService documentService;
+
+  final ContextoNarrativoService contextoNarrativoService;
+  final NarrativaConfig narrativaConfig;
+  final ImageService? imageService;
+
+  // Evita dos generaciones simultáneas
+  // desde la misma escena.
+  final Set<String> _generacionesEnCurso = {};
+
+  // Evita doble solicitud o generaciones concurrentes de imágenes para la misma escena
+  final Set<String> _generacionesImagenEnCurso = {};
 
   StoryController({
     required this.narrativaService,
     required this.cuentoRepository,
+    required this.documentService,
+    required this.aiService,
+    this.imageService,
+    this.contextoNarrativoService = const ContextoNarrativoService(),
+    this.narrativaConfig = const NarrativaConfig(),
   });
+
+  // =====================================================
+  // CREAR CUENTO DESDE DIBUJO
+  // =====================================================
 
   Future<Cuento> crearCuentoInicialDemo({
     required String id,
     required String nombrePersonaje,
+    required Uint8List dibujoReferenciaPng,
   }) async {
-    final nombre =
-        nombrePersonaje.trim();
+    final nombre = nombrePersonaje.trim();
 
     if (nombre.isEmpty) {
-      throw ArgumentError(
-        'El nombre del personaje no puede estar vacío.',
-      );
+      throw ArgumentError('El nombre del personaje no puede estar vacío.');
+    }
+
+    if (dibujoReferenciaPng.isEmpty) {
+      throw ArgumentError('El dibujo de referencia no puede estar vacío.');
     }
 
     final cuento = Cuento(
       id: id,
-      titulo:
-          'La aventura de $nombre',
-      personajePrincipal:
-          nombre,
+      titulo: 'La aventura de $nombre',
+      personajePrincipal: nombre,
+      origen: CuentoOrigen.dibujo,
+      referenciaVisualPng: dibujoReferenciaPng,
     );
 
-    final escenaInicial =
-        narrativaService.crearEscenaInicialDemo(
+    final escenaInicial = narrativaService.crearEscenaInicialDemo(
       nombrePersonaje: nombre,
     );
 
-    cuento.agregarEscena(
-      escenaInicial,
-    );
+    cuento.agregarEscena(escenaInicial);
 
-    await cuentoRepository.guardarCuento(
-      cuento,
-    );
+    await cuentoRepository.guardarCuento(cuento);
 
     return cuento;
   }
+
+  // =====================================================
+  // PROCESAR PDF CON IA
+  // =====================================================
+
+  Future<PdfStoryData> procesarPdf({
+    required String nombreArchivo,
+    required Uint8List pdfBytes,
+  }) async {
+    final datosPdf = await documentService.procesarPdf(
+      nombreArchivo: nombreArchivo,
+      pdfBytes: pdfBytes,
+    );
+
+    if (!datosPdf.tieneTexto) {
+      throw StateError('No se pudo extraer texto del PDF.');
+    }
+
+    final analisis = await aiService.analizarHistoria(datosPdf.textoExtraido);
+
+    return datosPdf.copyWith(
+      tituloDetectado: analisis.titulo,
+      tituloOriginal: analisis.tituloOriginal,
+      personajePrincipalDetectado: analisis.personajePrincipal,
+      descripcionPersonaje: analisis.descripcionPersonaje,
+      resumen: analisis.resumen,
+      escenario: analisis.escenario,
+      conflictoPrincipal: analisis.conflictoPrincipal,
+      finalOriginal: analisis.finalOriginal,
+    );
+  }
+
+  // =====================================================
+  // CREAR CUENTO DESDE PDF PROCESADO
+  // =====================================================
+
+  Future<Cuento> crearCuentoDesdePdfProcesadoDemo({
+    required String id,
+    required PdfStoryData datosPdf,
+    required CharacterCustomization personalizacion,
+    Uint8List? dibujoReferenciaPng,
+  }) async {
+    final nombre = CharacterCustomization.sanitizarNombre(
+      personalizacion.nombrePersonaje,
+    );
+
+    if (nombre.isEmpty) {
+      throw ArgumentError('El nombre del personaje no puede estar vacío.');
+    }
+
+    if (!datosPdf.tieneTexto) {
+      throw StateError('El PDF no contiene texto utilizable.');
+    }
+
+    if (personalizacion.visualMode == CharacterVisualMode.drawing &&
+        (dibujoReferenciaPng == null || dibujoReferenciaPng.isEmpty)) {
+      throw StateError(
+        'Se seleccionó un personaje dibujado, '
+        'pero no se recibió el dibujo.',
+      );
+    }
+
+    final titulo = datosPdf.tituloDetectado?.trim();
+
+    final esNuevo = personalizacion.mode == CharacterMode.newCharacter;
+    final esRenombrado = personalizacion.mode == CharacterMode.renameOriginal;
+
+    // Si es renombrado, conserva la descripción, personalidad y rasgos del protagonista original.
+    // Si es un personaje nuevo, tiene su propia descripción cuando exista, sin heredar del original.
+    final descripcionPersonaje = esNuevo
+        ? (personalizacion.descripcionPersonaje?.trim().isNotEmpty == true
+              ? personalizacion.descripcionPersonaje!.trim()
+              : null)
+        : datosPdf.descripcionPersonaje;
+
+    final personajeOriginal = esRenombrado || esNuevo
+        ? (personalizacion.personajeOriginal ??
+              datosPdf.personajePrincipalDetectado)
+        : datosPdf.personajePrincipalDetectado;
+
+    final cuento = Cuento(
+      id: id,
+      titulo: titulo != null && titulo.isNotEmpty
+          ? titulo
+          : 'La aventura de $nombre',
+      tituloOriginal: datosPdf.tituloOriginal,
+      personajePrincipal: nombre,
+      personajeOriginal: personajeOriginal,
+      esPersonajeNuevo: esNuevo,
+      origen: CuentoOrigen.pdf,
+      textoFuente: datosPdf.textoExtraido,
+      resumenOriginal: datosPdf.resumen,
+      escenarioOriginal: datosPdf.escenario,
+      conflictoPrincipal: datosPdf.conflictoPrincipal,
+      finalOriginal: datosPdf.finalOriginal,
+      descripcionPersonaje: descripcionPersonaje,
+      referenciaVisualPng:
+          dibujoReferenciaPng ?? personalizacion.imagenReferencia,
+    );
+
+    Escena escenaInicial;
+    try {
+      final generatedScene = await aiService.generarEscenaInicial(
+        titulo: cuento.titulo,
+        personajePrincipal: nombre,
+        personajeOriginal: cuento.personajeOriginal,
+        esPersonajeNuevo: cuento.esPersonajeNuevo,
+        textoFuente: datosPdf.textoExtraido,
+        resumenOriginal: datosPdf.resumen ?? '',
+        escenarioOriginal: datosPdf.escenario ?? '',
+        conflictoPrincipal: datosPdf.conflictoPrincipal ?? '',
+        finalOriginal: datosPdf.finalOriginal ?? '',
+        descripcionPersonaje: cuento.descripcionPersonaje,
+      );
+
+      final contenidoSanitizado = cuento.requiereSustitucionNombreOriginal
+          ? sanitizarNombrePersonaje(
+              generatedScene.contenido,
+              original: cuento.personajeOriginal!,
+              actual: cuento.personajePrincipal,
+            )
+          : generatedScene.contenido;
+
+      final opcionesSanitizadas = cuento.requiereSustitucionNombreOriginal
+          ? generatedScene.opciones
+                .map(
+                  (op) => sanitizarNombrePersonaje(
+                    op,
+                    original: cuento.personajeOriginal!,
+                    actual: cuento.personajePrincipal,
+                  ),
+                )
+                .toList()
+          : generatedScene.opciones;
+
+      escenaInicial = Escena(
+        numero: 1,
+        contenido: contenidoSanitizado,
+        opciones: opcionesSanitizadas,
+        esFinal: generatedScene.esFinal,
+      );
+    } catch (_) {
+      // Fallback seguro en español si falla la IA
+      final fallback = narrativaService.crearEscenaInicialDesdePdfDemo(
+        nombrePersonaje: nombre,
+        datosPdf: datosPdf,
+      );
+
+      escenaInicial = cuento.requiereSustitucionNombreOriginal
+          ? Escena(
+              numero: fallback.numero,
+              contenido: sanitizarNombrePersonaje(
+                fallback.contenido,
+                original: cuento.personajeOriginal!,
+                actual: cuento.personajePrincipal,
+              ),
+              opciones: fallback.opciones
+                  .map(
+                    (op) => sanitizarNombrePersonaje(
+                      op,
+                      original: cuento.personajeOriginal!,
+                      actual: cuento.personajePrincipal,
+                    ),
+                  )
+                  .toList(),
+              esFinal: fallback.esFinal,
+            )
+          : fallback;
+    }
+
+    cuento.agregarEscena(escenaInicial);
+
+    await cuentoRepository.guardarCuento(cuento);
+
+    return cuento;
+  }
+
+  // =====================================================
+  // COMPATIBILIDAD CON MÉTODO ANTERIOR
+  // =====================================================
+
+  Future<Cuento> crearCuentoDesdePdfDemo({
+    required String id,
+    required String nombrePersonaje,
+    required String nombreArchivo,
+    required Uint8List pdfBytes,
+  }) async {
+    final datosPdf = await procesarPdf(
+      nombreArchivo: nombreArchivo,
+      pdfBytes: pdfBytes,
+    );
+
+    final personalizacion = CharacterCustomization(
+      mode: CharacterMode.newCharacter,
+      visualMode: CharacterVisualMode.automatic,
+      nombrePersonaje: nombrePersonaje,
+    );
+
+    return crearCuentoDesdePdfProcesadoDemo(
+      id: id,
+      datosPdf: datosPdf,
+      personalizacion: personalizacion,
+    );
+  }
+
+  // =====================================================
+  // PREPARAR CONTEXTO NARRATIVO
+  // =====================================================
 
   Future<String> prepararContinuacion({
     required Cuento cuento,
     required String decision,
   }) async {
-    if (decision.trim().isEmpty) {
-      throw ArgumentError(
-        'La decisión no puede estar vacía.',
-      );
+    final opcion = decision.trim();
+
+    if (opcion.isEmpty) {
+      throw ArgumentError('La decisión no puede estar vacía.');
     }
 
-    return narrativaService.construirContexto(
-      escenas: cuento.escenas,
-      decision: decision,
-    );
+    final contexto = contextoNarrativoService.construirContexto(cuento);
+
+    return '$contexto\n\n'
+        'DECISIÓN ACTUAL DEL ESTUDIANTE:\n'
+        '$opcion';
   }
+
+  // =====================================================
+  // GENERAR SIGUIENTE ESCENA CON GEMINI
+  // =====================================================
 
   Future<Escena> generarSiguienteEscena({
     required Cuento cuento,
     required Escena escenaActual,
     required String decision,
   }) async {
-    final opcion =
-        decision.trim();
+    final opcion = decision.trim();
 
     if (opcion.isEmpty) {
-      throw ArgumentError(
-        'La decisión no puede estar vacía.',
-      );
+      throw ArgumentError('La decisión no puede estar vacía.');
     }
 
     if (cuento.escenas.isEmpty) {
-      throw StateError(
-        'El cuento todavía no tiene escenas.',
-      );
+      throw StateError('El cuento todavía no tiene escenas.');
     }
 
-    final ultimaEscena =
-        cuento.escenas.last;
+    final escenasOrdenadas = [...cuento.escenas]
+      ..sort((a, b) => a.numero.compareTo(b.numero));
 
-    /*
-     * Solamente la última escena generada
-     * puede crear una continuación nueva.
-     */
-    if (ultimaEscena.numero !=
-        escenaActual.numero) {
+    final ultimaEscena = escenasOrdenadas.last;
+
+    if (ultimaEscena.numero != escenaActual.numero) {
       throw StateError(
         'No se puede modificar una ruta '
         'desde una escena anterior.',
@@ -102,133 +338,345 @@ class StoryController {
     }
 
     if (escenaActual.esFinal) {
-      throw StateError(
-        'La historia ya ha finalizado.',
-      );
+      throw StateError('La historia ya ha finalizado.');
     }
 
-    /*
-     * Evita enviar al controlador una
-     * alternativa inventada o manipulada.
-     */
-    if (!escenaActual.opciones.contains(
-      opcion,
-    )) {
+    if (!escenaActual.opciones.contains(opcion)) {
       throw ArgumentError(
         'La alternativa seleccionada '
         'no pertenece a la escena actual.',
       );
     }
 
-    final decisionExistente =
-        cuento.obtenerDecision(
-      escenaActual.numero,
-    );
+    final decisionExistente = cuento.obtenerDecision(escenaActual.numero);
 
-    /*
-     * Si ya existe una decisión y es distinta,
-     * no permitimos cambiar la ruta.
-     */
     if (decisionExistente != null &&
-        decisionExistente.opcionSeleccionada !=
-            opcion) {
-      throw StateError(
-        'Esta escena ya tiene una decisión.',
-      );
+        decisionExistente.opcionSeleccionada != opcion) {
+      throw StateError('Esta escena ya tiene una decisión registrada.');
     }
 
-    /*
-     * Si ya habíamos generado la siguiente escena,
-     * la devolvemos en lugar de crear otra.
-     *
-     * Esto protege frente a dobles clics,
-     * reintentos o respuestas duplicadas.
-     */
-    final escenaYaGenerada =
-        cuento.obtenerEscena(
-      escenaActual.numero + 1,
-    );
+    final numeroNuevaEscena = escenaActual.numero + 1;
 
-    if (escenaYaGenerada != null) {
-      return escenaYaGenerada;
+    // Si la escena ya existe, no volvemos
+    // a consumir una solicitud de Gemini.
+    final escenaExistente = cuento.obtenerEscena(numeroNuevaEscena);
+
+    if (escenaExistente != null) {
+      // También reintenta persistir por si
+      // falló un guardado anterior.
+      await cuentoRepository.guardarCuento(cuento);
+
+      return escenaExistente;
     }
 
-    /*
-     * Registramos la decisión antes de llamar
-     * al generador.
-     *
-     * Si la IA falla, podemos reintentar
-     * exactamente la misma decisión.
-     */
-    if (decisionExistente == null) {
-      cuento.registrarDecision(
-        DecisionNarrativa(
-          numeroEscena:
-              escenaActual.numero,
-          opcionSeleccionada:
-              opcion,
-        ),
-      );
+    final claveGeneracion = '${cuento.id}:${escenaActual.numero}';
 
-      await cuentoRepository.guardarCuento(
+    if (!_generacionesEnCurso.add(claveGeneracion)) {
+      throw StateError('Ya se está generando esta escena.');
+    }
+
+    try {
+      // -----------------------------------------------
+      // 1. CONSTRUIR CONTEXTO ACUMULADO CON LÍMITES
+      // -----------------------------------------------
+
+      final contextoNarrativo = contextoNarrativoService.construirContexto(
         cuento,
+        maxCaracteres: narrativaConfig.maxCaracteresContexto,
       );
+
+      final textoFuente = cuento.textoFuente ?? '';
+      final textoFuenteLimitado =
+          textoFuente.length > narrativaConfig.maxCaracteresTextoFuente
+          ? textoFuente.substring(0, narrativaConfig.maxCaracteresTextoFuente)
+          : textoFuente;
+
+      // -----------------------------------------------
+      // 2. SOLICITAR ESCENA A GEMINI (CON REINTENTOS)
+      // -----------------------------------------------
+
+      final esUltimaEscena = numeroNuevaEscena >= narrativaConfig.maxEscenas;
+
+      GeneratedScene? resultado;
+      Object? ultimoError;
+
+      for (
+        var intento = 0;
+        intento <= narrativaConfig.maxReintentos;
+        intento++
+      ) {
+        try {
+          final res = await aiService
+              .generarEscena(
+                titulo: cuento.titulo,
+                personajePrincipal: cuento.personajePrincipal,
+                personajeOriginal: cuento.personajeOriginal,
+                esPersonajeNuevo: cuento.esPersonajeNuevo,
+                descripcionPersonaje: cuento.descripcionPersonaje,
+                textoFuente: textoFuenteLimitado,
+                resumenOriginal: cuento.resumenOriginal ?? '',
+                escenarioOriginal: cuento.escenarioOriginal ?? '',
+                conflictoPrincipal: cuento.conflictoPrincipal ?? '',
+                finalOriginal: cuento.finalOriginal ?? '',
+                contextoNarrativo: contextoNarrativo,
+                decisionActual: opcion,
+                numeroEscena: numeroNuevaEscena,
+                esUltimaEscena: esUltimaEscena,
+              )
+              .timeout(narrativaConfig.timeoutGeneracion);
+
+          if (esUltimaEscena) {
+            // El contenido final debe nacer como desenlace desde la generación.
+            // Si la IA no finalizó o el texto sigue abierto, se rechaza y se reintenta.
+            if (!res.esFinal ||
+                res.opciones.isNotEmpty ||
+                esFinalAbierto(res.contenido)) {
+              throw StateError(
+                'La IA generó una escena final abierta o sin desenlace conclusivo.',
+              );
+            }
+          }
+
+          resultado = res;
+          break;
+        } catch (e) {
+          ultimoError = e;
+          if (intento < narrativaConfig.maxReintentos) {
+            await Future.delayed(const Duration(milliseconds: 600));
+          }
+        }
+      }
+
+      if (resultado == null) {
+        throw StateError(
+          'No se pudo generar la siguiente escena tras reintentar: $ultimoError',
+        );
+      }
+
+      // -----------------------------------------------
+      // 3. CREAR MODELO DE ESCENA
+      // -----------------------------------------------
+
+      final contenidoSanitizado = cuento.requiereSustitucionNombreOriginal
+          ? sanitizarNombrePersonaje(
+              resultado.contenido,
+              original: cuento.personajeOriginal!,
+              actual: cuento.personajePrincipal,
+            )
+          : resultado.contenido;
+
+      final opcionesSanitizadas = cuento.requiereSustitucionNombreOriginal
+          ? resultado.opciones
+                .map(
+                  (op) => sanitizarNombrePersonaje(
+                    op,
+                    original: cuento.personajeOriginal!,
+                    actual: cuento.personajePrincipal,
+                  ),
+                )
+                .toList()
+          : resultado.opciones;
+
+      final nuevaEscena = Escena(
+        numero: numeroNuevaEscena,
+        contenido: contenidoSanitizado,
+        opciones: opcionesSanitizadas,
+        esFinal: resultado.esFinal,
+      );
+
+      // -----------------------------------------------
+      // 4. REGISTRAR DECISIÓN
+      // -----------------------------------------------
+
+      // La registramos después de recibir la escena,
+      // para no dejar una decisión nueva en memoria
+      // cuando falla Gemini.
+
+      if (decisionExistente == null) {
+        cuento.registrarDecision(
+          DecisionNarrativa(
+            numeroEscena: escenaActual.numero,
+            opcionSeleccionada: opcion,
+          ),
+        );
+      }
+
+      // -----------------------------------------------
+      // 5. AÑADIR ESCENA AL CUENTO
+      // -----------------------------------------------
+
+      cuento.agregarEscena(nuevaEscena);
+
+      // -----------------------------------------------
+      // 6. GUARDAR EN SUPABASE
+      // -----------------------------------------------
+
+      await cuentoRepository.guardarCuento(cuento);
+
+      return nuevaEscena;
+    } finally {
+      _generacionesEnCurso.remove(claveGeneracion);
     }
-
-    final nuevaEscena =
-        await narrativaService
-            .generarSiguienteEscena(
-      cuento: cuento,
-      escenaActual: escenaActual,
-      decision: opcion,
-    );
-
-    /*
-     * Segunda protección frente a duplicados.
-     */
-    final existenteDespues =
-        cuento.obtenerEscena(
-      nuevaEscena.numero,
-    );
-
-    if (existenteDespues != null) {
-      return existenteDespues;
-    }
-
-    cuento.agregarEscena(
-      nuevaEscena,
-    );
-
-    await cuentoRepository.guardarCuento(
-      cuento,
-    );
-
-    return nuevaEscena;
   }
+
+  // =====================================================
+  // AGREGAR ESCENA MANUAL
+  // =====================================================
 
   Future<void> agregarEscena({
     required Cuento cuento,
     required String contenido,
   }) async {
     if (contenido.trim().isEmpty) {
-      throw ArgumentError(
-        'El contenido de la escena '
-        'no puede estar vacío.',
-      );
+      throw ArgumentError('El contenido de la escena no puede estar vacío.');
     }
 
-    final nuevaEscena = Escena(
-      numero:
-          cuento.escenas.length + 1,
-      contenido: contenido,
-    );
+    final siguienteNumero = cuento.escenas.isEmpty
+        ? 1
+        : cuento.escenas
+                  .map((escena) => escena.numero)
+                  .reduce((a, b) => a > b ? a : b) +
+              1;
 
-    cuento.agregarEscena(
-      nuevaEscena,
-    );
+    final nuevaEscena = Escena(numero: siguienteNumero, contenido: contenido);
 
-    await cuentoRepository.guardarCuento(
-      cuento,
+    cuento.agregarEscena(nuevaEscena);
+
+    await cuentoRepository.guardarCuento(cuento);
+  }
+
+  // =====================================================
+  // SANITIZACIÓN DE NOMBRE DE PROTAGONISTA
+  // =====================================================
+
+  /// Sanitiza el texto de una escena generada reemplazando ocurrencias del nombre original
+  /// por el nombre personalizado, usando límites de palabra para no alterar otras palabras.
+  static String sanitizarNombrePersonaje(
+    String texto, {
+    required String original,
+    required String actual,
+  }) {
+    final orig = original.trim();
+    final act = actual.trim();
+    if (orig.isEmpty ||
+        act.isEmpty ||
+        orig.toLowerCase() == act.toLowerCase()) {
+      return texto;
+    }
+
+    final pattern = RegExp(
+      r'(?<![\wáéíóúüñÁÉÍÓÚÜÑ])' +
+          RegExp.escape(orig) +
+          r'(?![\wáéíóúüñÁÉÍÓÚÜÑ])',
+      caseSensitive: false,
     );
+    return texto.replaceAll(pattern, act);
+  }
+
+  // =====================================================
+  // DETECCIÓN DE FINAL ABIERTO
+  // =====================================================
+
+  /// Detecta si el texto de una supuesta escena final contiene señales
+  /// evidentes de final abierto, inconcluso o que posterga la resolución.
+  static bool esFinalAbierto(String texto) {
+    if (texto.trim().isEmpty) return true;
+    final min = texto.toLowerCase();
+    const patrones = [
+      'siguiente paso',
+      'siguientes pasos',
+      'decidió investigar',
+      'decidieron investigar',
+      'qué ocurrirá',
+      'que ocurrira',
+      'qué pasará',
+      'que pasara',
+      'qué hará',
+      'que hara',
+      'continuará',
+      'continuara',
+      'tendrá que descubrir',
+      'tendra que descubrir',
+      'tendrán que descubrir',
+      'tendran que descubrir',
+      'aún debía averiguar',
+      'aun debia averiguar',
+      'aún quedaba por descubrir',
+      'aun quedaba por descubrir',
+      'un nuevo misterio',
+      'un misterio aún mayor',
+      'una nueva aventura comenzaba',
+      'la aventura apenas comenzaba',
+    ];
+    return patrones.any((p) => min.contains(p));
+  }
+
+  // =====================================================
+  // GESTIÓN DE ILUSTRACIONES POR ESCENA
+  // =====================================================
+
+  /// Comprueba si actualmente se está generando la imagen para una escena dada.
+  bool estaGenerandoImagen(String cuentoId, int numeroEscena) {
+    return _generacionesImagenEnCurso.contains('$cuentoId:$numeroEscena');
+  }
+
+  /// Asegura que la escena cuente con una ilustración asociada.
+  /// - Si la escena ya cuenta con [imageUrl], la devuelve inmediatamente (reutilización estricta).
+  /// - Si ya hay una generación activa para esta escena, bloquea solicitudes duplicadas concurrentes.
+  /// - Si la llamada falla o no hay [imageService], devuelve null sin bloquear el flujo del cuento.
+  Future<String?> asegurarIlustracionEscena({
+    required Cuento cuento,
+    required int numeroEscena,
+    bool forzarReintento = false,
+  }) async {
+    final escena = cuento.obtenerEscena(numeroEscena);
+    if (escena == null) return null;
+
+    // 1. Reutilización estricta: nunca regenerar si ya tiene URL salvo reintento manual forzado
+    if (!forzarReintento &&
+        escena.imageUrl != null &&
+        escena.imageUrl!.trim().isNotEmpty) {
+      return escena.imageUrl;
+    }
+
+    // 2. Si no hay servicio configurado, no hacer nada
+    if (imageService == null) {
+      return null;
+    }
+
+    final clave = '${cuento.id}:$numeroEscena';
+    // 3. Prevenir doble clic o generaciones concurrentes para la misma escena
+    if (!_generacionesImagenEnCurso.add(clave)) {
+      return null;
+    }
+
+    try {
+      final solicitud = SolicitudImagenEscena(
+        cuentoId: cuento.id,
+        numeroEscena: numeroEscena,
+        contenidoEscena: escena.contenido,
+        nombreProtagonista: cuento.personajePrincipal,
+        descripcionPersonaje: cuento.descripcionPersonaje,
+        escenario: cuento.escenarioOriginal,
+        referenciaVisualBytes: cuento.referenciaVisualPng,
+      );
+
+      final url = await imageService!
+          .generarIlustracionEscena(solicitud)
+          .timeout(const Duration(seconds: 40));
+
+      if (url.trim().isNotEmpty) {
+        cuento.asociarImagenAEscena(numeroEscena, url.trim());
+        // Guardar la URL en la base de datos (escenas.image_url)
+        await cuentoRepository.guardarCuento(cuento);
+        return url.trim();
+      }
+      return null;
+    } catch (_) {
+      // Si la imagen falla, NO bloquear el cuento ni la narrativa
+      return null;
+    } finally {
+      _generacionesImagenEnCurso.remove(clave);
+    }
   }
 }

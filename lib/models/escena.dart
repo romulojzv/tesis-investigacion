@@ -20,4 +20,20 @@ class Escena {
     this.opciones = const [],
     this.esFinal = false,
   });
+
+  Escena copyWith({
+    int? numero,
+    String? contenido,
+    String? imageUrl,
+    List<String>? opciones,
+    bool? esFinal,
+  }) {
+    return Escena(
+      numero: numero ?? this.numero,
+      contenido: contenido ?? this.contenido,
+      imageUrl: imageUrl ?? this.imageUrl,
+      opciones: opciones ?? this.opciones,
+      esFinal: esFinal ?? this.esFinal,
+    );
+  }
 }

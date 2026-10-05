@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../controllers/story_controller.dart';
 import '../models/cuento.dart';
 import '../models/escena.dart';
+import '../services/narracion_service.dart';
+import '../widgets/ilustracion_escena_widget.dart';
 
 enum StoryStatus {
   reading,
@@ -17,42 +21,49 @@ class StoryView extends StatefulWidget {
   final Cuento cuento;
   final StoryController controller;
 
-  final Future<void> Function(
-    Escena escena,
-  ) onNarrar;
+  final Future<void> Function(Escena escena)? onNarrar;
+  final NarracionService? narracionService;
+  final bool autoNarrar;
 
   final VoidCallback onSalir;
-
   final VoidCallback? onIrEvaluacion;
 
   const StoryView({
     super.key,
     required this.cuento,
     required this.controller,
-    required this.onNarrar,
+    this.onNarrar,
+    this.narracionService,
     required this.onSalir,
     this.onIrEvaluacion,
+    this.autoNarrar = true,
   });
 
   @override
-  State<StoryView> createState() =>
-      _StoryViewState();
+  State<StoryView> createState() => _StoryViewState();
 }
 
-class _StoryViewState
-    extends State<StoryView> {
+enum EstadoImagenEscena { sinImagen, generando, cargada, error }
+
+class _StoryViewState extends State<StoryView> {
   int _indiceEscenaActual = 0;
 
-  StoryStatus _status =
-      StoryStatus.reading;
+  StoryStatus _status = StoryStatus.reading;
 
   String? _opcionSeleccionada;
   String? _mensajeError;
 
+  late final NarracionService _narracionService;
+
+  ControladorReveladoTexto? _controladorRevelado;
+  String _textoReveladoActual = '';
+  final Set<int> _escenasLeidas = {};
+
+  final Map<int, EstadoImagenEscena> _estadosImagen = {};
+  Timer? _timerAutoNarracion;
+
   Escena get _escenaActual {
-    return widget
-        .cuento
-        .escenas[_indiceEscenaActual];
+    return widget.cuento.escenas[_indiceEscenaActual];
   }
 
   bool get _puedeRetroceder {
@@ -60,154 +71,394 @@ class _StoryViewState
   }
 
   bool get _puedeAvanzar {
-    return _indiceEscenaActual <
-        widget.cuento.escenas.length - 1;
+    return _indiceEscenaActual < widget.cuento.escenas.length - 1;
   }
 
   bool get _esUltimaEscenaGenerada {
-    return _indiceEscenaActual ==
-        widget.cuento.escenas.length - 1;
+    return _indiceEscenaActual == widget.cuento.escenas.length - 1;
   }
 
   bool get _estaProcesando {
-    return _status ==
-            StoryStatus.generatingScene ||
-        _status ==
-            StoryStatus.narrating;
+    return _status == StoryStatus.generatingScene ||
+        _status == StoryStatus.narrating;
   }
 
   @override
   void initState() {
     super.initState();
 
+    _narracionService = widget.narracionService ?? NarracionService();
+    _narracionService.onEstadoCambio = (estado) {
+      if (mounted) {
+        setState(() {
+          if (estado == EstadoNarracion.reproduciendo) {
+            _status = StoryStatus.narrating;
+          } else if (_status == StoryStatus.narrating) {
+            _actualizarEstadoEscena();
+          }
+        });
+      }
+    };
+    _narracionService.inicializar();
+
     if (widget.cuento.escenas.isNotEmpty) {
-      _actualizarEstadoEscena();
+      _textoReveladoActual = _escenaActual.contenido;
+      _prepararEscenaActual();
     }
+  }
+
+  @override
+  void dispose() {
+    _timerAutoNarracion?.cancel();
+    _controladorRevelado?.dispose();
+    _narracionService.dispose();
+    super.dispose();
   }
 
   void _actualizarEstadoEscena() {
     final escena = _escenaActual;
 
     if (escena.esFinal) {
-      _status =
-          StoryStatus.finished;
-
+      _status = StoryStatus.finished;
       return;
     }
 
     if (_esUltimaEscenaGenerada) {
-      _status =
-          StoryStatus.waitingDecision;
+      _status = StoryStatus.waitingDecision;
     } else {
-      _status =
-          StoryStatus.reading;
+      _status = StoryStatus.reading;
+    }
+  }
+
+  void _prepararEscenaActual() {
+    _actualizarEstadoEscena();
+
+    final escena = _escenaActual;
+    final yaLeida = _escenasLeidas.contains(escena.numero);
+
+    // Si hay ImageService y la escena no tiene imagen, iniciar carga asíncrona sin bloquear lectura
+    if (widget.controller.imageService != null &&
+        (escena.imageUrl == null || escena.imageUrl!.trim().isEmpty) &&
+        _estadosImagen[escena.numero] != EstadoImagenEscena.error &&
+        _estadosImagen[escena.numero] != EstadoImagenEscena.generando) {
+      _solicitarGeneracionImagen();
+    }
+
+    if (yaLeida) {
+      // Al retroceder o volver a una escena ya leída, se muestra completa inmediatamente
+      _textoReveladoActual = escena.contenido;
+      _controladorRevelado?.detener(mostrarTextoCompleto: true);
+    } else {
+      if (widget.autoNarrar) {
+        _controladorRevelado?.detener(mostrarTextoCompleto: false);
+        _controladorRevelado = ControladorReveladoTexto(
+          textoCompleto: escena.contenido,
+          velocidad: _narracionService.velocidad,
+          palabrasPorMinutoBase:
+              widget.controller.narrativaConfig.palabrasPorMinutoBase,
+          velocidadTtsBase: widget.controller.narrativaConfig.velocidadTtsBase,
+          intervaloVisualMinimoMs:
+              widget.controller.narrativaConfig.intervaloVisualMinimoMs,
+          factorAjusteRevelado:
+              widget.controller.narrativaConfig.factorAjusteRevelado,
+        );
+        _textoReveladoActual = _controladorRevelado!.textoVisible;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _timerAutoNarracion?.cancel();
+          _timerAutoNarracion = Timer(const Duration(milliseconds: 350), () {
+            if (!mounted) return;
+            if (_escenaActual.numero == escena.numero &&
+                !_narracionService.estaReproduciendo) {
+              _iniciarNarracionYRevelado();
+            }
+          });
+        });
+      } else {
+        _textoReveladoActual = escena.contenido;
+      }
+    }
+  }
+
+  Future<void> _iniciarNarracionYRevelado() async {
+    if (_status == StoryStatus.generatingScene) return;
+    if (_narracionService.estaReproduciendo) return;
+
+    final escena = _escenaActual;
+    _escenasLeidas.add(escena.numero);
+
+    _controladorRevelado?.detener(mostrarTextoCompleto: false);
+    _controladorRevelado = ControladorReveladoTexto(
+      textoCompleto: escena.contenido,
+      velocidad: _narracionService.velocidad,
+      palabrasPorMinutoBase:
+          widget.controller.narrativaConfig.palabrasPorMinutoBase,
+      velocidadTtsBase: widget.controller.narrativaConfig.velocidadTtsBase,
+      intervaloVisualMinimoMs:
+          widget.controller.narrativaConfig.intervaloVisualMinimoMs,
+      factorAjusteRevelado:
+          widget.controller.narrativaConfig.factorAjusteRevelado,
+    );
+
+    setState(() {
+      _status = StoryStatus.narrating;
+      _textoReveladoActual = _controladorRevelado!.textoVisible;
+      _mensajeError = null;
+    });
+
+    _controladorRevelado!.iniciar(
+      onTick: (texto) {
+        if (mounted && _escenaActual.numero == escena.numero) {
+          setState(() {
+            _textoReveladoActual = texto;
+          });
+        }
+      },
+      onCompleto: () {
+        if (mounted && _escenaActual.numero == escena.numero) {
+          setState(() {
+            _textoReveladoActual = escena.contenido;
+          });
+        }
+      },
+    );
+
+    try {
+      if (widget.onNarrar != null) {
+        widget.onNarrar!(escena);
+      }
+      await _narracionService.narrarTextoCompleto(escena.contenido);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _status = StoryStatus.error;
+          _mensajeError = 'No pudimos reproducir la narración.';
+        });
+      }
+    } finally {
+      _controladorRevelado?.mostrarTodo();
+      if (mounted && _escenaActual.numero == escena.numero) {
+        setState(() {
+          _textoReveladoActual = escena.contenido;
+          _actualizarEstadoEscena();
+        });
+      }
+    }
+  }
+
+  Future<void> _detenerNarracion() async {
+    await _narracionService.detener();
+    _controladorRevelado?.mostrarTodo();
+    if (mounted) {
+      setState(() {
+        _textoReveladoActual = _escenaActual.contenido;
+        _actualizarEstadoEscena();
+      });
     }
   }
 
   void _retroceder() {
-    if (!_puedeRetroceder ||
-        _estaProcesando) {
+    if (!_puedeRetroceder || _estaProcesando) {
       return;
     }
 
+    _detenerNarracion();
+
     setState(() {
       _indiceEscenaActual--;
-
       _opcionSeleccionada = null;
       _mensajeError = null;
-
-      _actualizarEstadoEscena();
+      _prepararEscenaActual();
     });
   }
 
   void _avanzar() {
-    if (!_puedeAvanzar ||
-        _estaProcesando) {
+    if (!_puedeAvanzar || _estaProcesando) {
       return;
     }
 
+    _detenerNarracion();
+
     setState(() {
       _indiceEscenaActual++;
-
       _opcionSeleccionada = null;
       _mensajeError = null;
-
-      _actualizarEstadoEscena();
+      _prepararEscenaActual();
     });
   }
 
   Future<void> _narrarEscena() async {
-    if (_estaProcesando) {
+    if (_status == StoryStatus.generatingScene) {
       return;
     }
 
-    final estadoAnterior =
-        _status;
-
-    setState(() {
-      _status =
-          StoryStatus.narrating;
-    });
-
-    try {
-      await widget.onNarrar(
-        _escenaActual,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _status =
-            estadoAnterior;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _status =
-            StoryStatus.error;
-
-        _mensajeError =
-            'No pudimos reproducir la narración.';
-      });
+    if (_status == StoryStatus.narrating ||
+        _narracionService.estaReproduciendo) {
+      await _detenerNarracion();
+      return;
     }
+
+    await _iniciarNarracionYRevelado();
   }
 
-  Future<void> _seleccionarOpcion(
-    String opcion,
-  ) async {
-    if (!_esUltimaEscenaGenerada ||
-        _estaProcesando ||
-        _escenaActual.esFinal) {
+  Future<void> _reiniciarNarracion() async {
+    if (_status == StoryStatus.generatingScene) return;
+    await _detenerNarracion();
+    await _iniciarNarracionYRevelado();
+  }
+
+  void _abrirAjustesVoz() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final voces = _narracionService.vocesDisponibles;
+            final vozActual = _narracionService.vozSeleccionada;
+            final velocidadActual = _narracionService.velocidad;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Row(
+                children: [
+                  Icon(
+                    Icons.record_voice_over_rounded,
+                    color: Color(0xFFE65100),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Ajustes de Narración',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Velocidad de lectura:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Text('🐢', style: TextStyle(fontSize: 20)),
+                        Expanded(
+                          child: Slider(
+                            value: velocidadActual,
+                            min: 0.25,
+                            max: 0.85,
+                            divisions: 6,
+                            label:
+                                '${(velocidadActual * 2).toStringAsFixed(1)}x',
+                            onChanged: (nuevaVel) async {
+                              await _narracionService.cambiarVelocidad(
+                                nuevaVel,
+                              );
+                              _controladorRevelado?.actualizarVelocidad(
+                                nuevaVel,
+                              );
+                              setDialogState(() {});
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                        const Text('🐇', style: TextStyle(fontSize: 20)),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    const Text(
+                      'Voz del narrador (Windows):',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (voces.isEmpty)
+                      const Text(
+                        'Se utilizará la voz en español predeterminada de Windows.',
+                        style: TextStyle(color: Colors.black54, fontSize: 14),
+                      )
+                    else
+                      DropdownButtonFormField<VozInfo>(
+                        initialValue: voces.contains(vozActual)
+                            ? vozActual
+                            : voces.first,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
+                        items: voces.map((v) {
+                          return DropdownMenuItem<VozInfo>(
+                            value: v,
+                            child: Text(
+                              v.etiqueta,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (nuevaVoz) async {
+                          if (nuevaVoz != null) {
+                            await _narracionService.cambiarVoz(nuevaVoz);
+                            setDialogState(() {});
+                            setState(() {});
+                          }
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _seleccionarOpcion(String opcion) async {
+    if (!_esUltimaEscenaGenerada || _estaProcesando || _escenaActual.esFinal) {
       return;
     }
 
-    final escenaOrigen =
-        _escenaActual;
+    await _detenerNarracion();
+
+    final escenaOrigen = _escenaActual;
 
     setState(() {
-      _opcionSeleccionada =
-          opcion;
+      _opcionSeleccionada = opcion;
 
       _mensajeError = null;
 
-      _status =
-          StoryStatus.generatingScene;
+      _status = StoryStatus.generatingScene;
     });
 
     try {
-      await widget.controller
-          .generarSiguienteEscena(
-        cuento:
-            widget.cuento,
-        escenaActual:
-            escenaOrigen,
-        decision:
-            opcion,
+      await widget.controller.generarSiguienteEscena(
+        cuento: widget.cuento,
+        escenaActual: escenaOrigen,
+        decision: opcion,
       );
 
       if (!mounted) {
@@ -221,37 +472,36 @@ class _StoryViewState
        * La View solo cambia qué escena muestra.
        */
       setState(() {
-        _indiceEscenaActual =
-            widget.cuento.escenas.length - 1;
+        _indiceEscenaActual = widget.cuento.escenas.length - 1;
 
-        _opcionSeleccionada =
-            null;
+        _opcionSeleccionada = null;
 
-        _mensajeError =
-            null;
+        _mensajeError = null;
 
-        _actualizarEstadoEscena();
+        _prepararEscenaActual();
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Error al generar siguiente escena: $error');
+
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _status =
-            StoryStatus.error;
+        _status = StoryStatus.error;
 
         _mensajeError =
-            'La magia se detuvo un momento. '
-            'No pudimos crear la siguiente '
-            'parte de tu aventura.';
+            'No pudimos crear la siguiente parte '
+            'de tu aventura. '
+            'Puedes intentarlo otra vez.';
       });
     }
   }
 
   void _reintentar() {
-    final opcion =
-        _opcionSeleccionada;
+    final opcion = _opcionSeleccionada;
 
     if (opcion == null) {
       setState(() {
@@ -263,24 +513,17 @@ class _StoryViewState
       return;
     }
 
-    _seleccionarOpcion(
-      opcion,
-    );
+    _seleccionarOpcion(opcion);
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     if (widget.cuento.escenas.isEmpty) {
       return _buildSinEscenas();
     }
 
     return Scaffold(
-      backgroundColor:
-          const Color(
-        0xFFFFF8F0,
-      ),
+      backgroundColor: const Color(0xFFFFF8F0),
       body: SafeArea(
         child: Column(
           children: [
@@ -288,16 +531,8 @@ class _StoryViewState
 
             Expanded(
               child: Padding(
-                padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                  30,
-                  5,
-                  30,
-                  18,
-                ),
-                child:
-                    _buildContenido(),
+                padding: const EdgeInsets.fromLTRB(30, 5, 30, 18),
+                child: _buildContenido(),
               ),
             ),
 
@@ -310,41 +545,28 @@ class _StoryViewState
 
   Widget _buildHeader() {
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        28,
-        18,
-        28,
-        14,
-      ),
+      padding: const EdgeInsets.fromLTRB(28, 18, 28, 14),
       child: Row(
         children: [
           IconButton(
-            tooltip:
-                'Salir del cuento',
-            onPressed:
-                _estaProcesando
-                    ? null
-                    : widget.onSalir,
-            icon: const Icon(
-              Icons.home_rounded,
-            ),
+            tooltip: 'Salir del cuento',
+            onPressed: _status == StoryStatus.generatingScene
+                ? null
+                : () {
+                    _detenerNarracion();
+                    widget.onSalir();
+                  },
+            icon: const Icon(Icons.home_rounded),
           ),
 
           const SizedBox(width: 10),
 
           IconButton(
-            tooltip:
-                'Página anterior',
-            onPressed:
-                _puedeRetroceder &&
-                        !_estaProcesando
-                    ? _retroceder
-                    : null,
-            icon: const Icon(
-              Icons
-                  .arrow_back_ios_new_rounded,
-            ),
+            tooltip: 'Página anterior',
+            onPressed: _puedeRetroceder && !_estaProcesando
+                ? _retroceder
+                : null,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
 
           const SizedBox(width: 10),
@@ -354,78 +576,65 @@ class _StoryViewState
               children: [
                 Text(
                   widget.cuento.titulo,
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      const TextStyle(
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontSize: 25,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(
-                      0xFF4E342E,
-                    ),
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4E342E),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 3,
-                ),
+                const SizedBox(height: 3),
 
                 Text(
                   'Escena '
                   '${_indiceEscenaActual + 1} '
                   'de '
                   '${widget.cuento.escenas.length}',
-                  style:
-                      const TextStyle(
-                    color:
-                        Color(
-                      0xFF795548,
-                    ),
-                  ),
+                  style: const TextStyle(color: Color(0xFF795548)),
                 ),
               ],
             ),
           ),
 
           FilledButton.tonalIcon(
-            onPressed:
-                _estaProcesando
-                    ? null
-                    : _narrarEscena,
+            onPressed: _status == StoryStatus.generatingScene
+                ? null
+                : _narrarEscena,
             icon: Icon(
-              _status ==
-                      StoryStatus
-                          .narrating
-                  ? Icons
-                      .volume_up_rounded
-                  : Icons
-                      .replay_rounded,
+              _status == StoryStatus.narrating
+                  ? Icons.stop_circle_rounded
+                  : Icons.volume_up_rounded,
             ),
             label: Text(
-              _status ==
-                      StoryStatus
-                          .narrating
-                  ? 'Narrando...'
-                  : 'Narrar de nuevo',
+              _status == StoryStatus.narrating ? 'Detener' : 'Escuchar',
             ),
+          ),
+
+          const SizedBox(width: 8),
+
+          IconButton(
+            tooltip: 'Narrar de nuevo',
+            onPressed: _status == StoryStatus.generatingScene
+                ? null
+                : _reiniciarNarracion,
+            icon: const Icon(Icons.replay_rounded),
+          ),
+
+          const SizedBox(width: 8),
+
+          IconButton(
+            tooltip: 'Ajustes de voz y velocidad',
+            onPressed: _abrirAjustesVoz,
+            icon: const Icon(Icons.settings_voice_rounded),
           ),
 
           const SizedBox(width: 12),
 
           IconButton(
-            tooltip:
-                'Página siguiente',
-            onPressed:
-                _puedeAvanzar &&
-                        !_estaProcesando
-                    ? _avanzar
-                    : null,
-            icon: const Icon(
-              Icons
-                  .arrow_forward_ios_rounded,
-            ),
+            tooltip: 'Página siguiente',
+            onPressed: _puedeAvanzar && !_estaProcesando ? _avanzar : null,
+            icon: const Icon(Icons.arrow_forward_ios_rounded),
           ),
         ],
       ),
@@ -436,150 +645,248 @@ class _StoryViewState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(
-          24,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 12,
-            color:
-                Color(
-              0x22000000,
-            ),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [BoxShadow(blurRadius: 12, color: Color(0x22000000))],
       ),
-      clipBehavior:
-          Clip.antiAlias,
+      clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
-          Expanded(
-            flex: 5,
-            child:
-                _buildImagen(),
-          ),
+          Expanded(flex: 5, child: _buildImagen()),
 
-          Container(
-            width: 1,
-            color:
-                const Color(
-              0xFFE0E0E0,
-            ),
-          ),
+          Container(width: 1, color: const Color(0xFFE0E0E0)),
 
-          Expanded(
-            flex: 5,
-            child:
-                _buildTexto(),
-          ),
+          Expanded(flex: 5, child: _buildTexto()),
         ],
       ),
     );
   }
 
-  Widget _buildImagen() {
-    final imageUrl =
-        _escenaActual.imageUrl;
+  Future<void> _solicitarGeneracionImagen({
+    bool forzarReintento = false,
+  }) async {
+    final escena = _escenaActual;
+    final numero = escena.numero;
 
-    if (imageUrl == null ||
-        imageUrl.trim().isEmpty) {
-      return Container(
-        color:
-            const Color(
-          0xFFFFF3E0,
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment
-                    .center,
-            children: [
-              Icon(
-                Icons
-                    .auto_awesome_rounded,
-                size: 80,
-                color:
-                    Color(
-                  0xFFF39C12,
-                ),
-              ),
-              SizedBox(
-                height: 16,
-              ),
-              Text(
-                'Aquí aparecerá la\n'
-                'ilustración de la escena',
-                textAlign:
-                    TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  color:
-                      Color(
-                    0xFF795548,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (!forzarReintento &&
+        escena.imageUrl != null &&
+        escena.imageUrl!.trim().isNotEmpty) {
+      return;
     }
 
-    return Image.network(
-      imageUrl,
-      width: double.infinity,
-      height: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder:
-          (
-            context,
-            error,
-            stackTrace,
-          ) {
-        return const Center(
-          child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment
-                    .center,
-            children: [
-              Icon(
-                Icons
-                    .broken_image_outlined,
-                size: 60,
-              ),
-              SizedBox(
-                height: 12,
-              ),
-              Text(
-                'No pudimos cargar '
-                'la ilustración.',
-              ),
-            ],
+    if (widget.controller.imageService == null) {
+      return;
+    }
+
+    if (widget.controller.estaGenerandoImagen(widget.cuento.id, numero)) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _estadosImagen[numero] = EstadoImagenEscena.generando;
+      });
+    }
+
+    try {
+      final url = await widget.controller.asegurarIlustracionEscena(
+        cuento: widget.cuento,
+        numeroEscena: numero,
+        forzarReintento: forzarReintento,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        if (url != null && url.isNotEmpty) {
+          _estadosImagen[numero] = EstadoImagenEscena.cargada;
+        } else {
+          _estadosImagen[numero] = EstadoImagenEscena.error;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _estadosImagen[numero] = EstadoImagenEscena.error;
+      });
+    }
+  }
+
+  Widget _buildImagen() {
+    final escena = _escenaActual;
+    final tieneUrl =
+        escena.imageUrl != null && escena.imageUrl!.trim().isNotEmpty;
+    final estado =
+        _estadosImagen[escena.numero] ??
+        (tieneUrl ? EstadoImagenEscena.cargada : EstadoImagenEscena.sinImagen);
+
+    switch (estado) {
+      case EstadoImagenEscena.generando:
+        return Container(
+          color: const Color(0xFFFFF8E1),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFF39C12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Generando ilustración...',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Dibujando la escena de ${widget.cuento.personajePrincipal}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF8D6E63),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
-      },
+
+      case EstadoImagenEscena.error:
+        return Container(
+          color: const Color(0xFFFFF3E0),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.broken_image_rounded,
+                  size: 60,
+                  color: Color(0xFFD32F2F),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'No pudimos crear la ilustración.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.tonalIcon(
+                  onPressed: () =>
+                      _solicitarGeneracionImagen(forzarReintento: true),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        );
+
+      case EstadoImagenEscena.cargada:
+        if (tieneUrl) {
+          return IlustracionEscenaWidget(
+            imageUrl: escena.imageUrl!,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.broken_image_outlined,
+                      size: 60,
+                      color: Color(0xFF795548),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'La ilustración se creó, pero no pudo mostrarse.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5D4037),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: () =>
+                          _solicitarGeneracionImagen(forzarReintento: true),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+        return _buildPlaceholderSinImagen();
+
+      case EstadoImagenEscena.sinImagen:
+        return _buildPlaceholderSinImagen();
+    }
+  }
+
+  Widget _buildPlaceholderSinImagen() {
+    return Container(
+      color: const Color(0xFFFFF3E0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              size: 80,
+              color: Color(0xFFF39C12),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Aquí aparecerá la\n'
+              'ilustración de la escena',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, color: Color(0xFF795548)),
+            ),
+            if (widget.controller.imageService != null) ...[
+              const SizedBox(height: 14),
+              FilledButton.tonalIcon(
+                onPressed: () => _solicitarGeneracionImagen(),
+                icon: const Icon(Icons.brush_rounded, size: 18),
+                label: const Text('Crear ilustración'),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildTexto() {
+    final textoAMostrar = _textoReveladoActual.isNotEmpty
+        ? _textoReveladoActual
+        : _escenaActual.contenido;
+
     return Padding(
-      padding:
-          const EdgeInsets.all(
-        38,
-      ),
-      child:
-          SingleChildScrollView(
+      padding: const EdgeInsets.all(38),
+      child: SingleChildScrollView(
         child: SelectableText(
-          _escenaActual.contenido,
-          style:
-              const TextStyle(
+          textoAMostrar,
+          style: const TextStyle(
             fontSize: 23,
             height: 1.7,
-            color:
-                Color(
-              0xFF3E2723,
-            ),
+            color: Color(0xFF3E2723),
           ),
         ),
       ),
@@ -587,14 +894,11 @@ class _StoryViewState
   }
 
   Widget _buildParteInferior() {
-    if (_status ==
-        StoryStatus
-            .generatingScene) {
+    if (_status == StoryStatus.generatingScene) {
       return _buildGenerando();
     }
 
-    if (_status ==
-        StoryStatus.error) {
+    if (_status == StoryStatus.error) {
       return _buildError();
     }
 
@@ -610,45 +914,18 @@ class _StoryViewState
      */
     if (!_esUltimaEscenaGenerada) {
       return Padding(
-        padding:
-            const EdgeInsets
-                .fromLTRB(
-          30,
-          0,
-          30,
-          22,
-        ),
+        padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
         child: Container(
-          padding:
-              const EdgeInsets
-                  .symmetric(
-            horizontal: 20,
-            vertical: 15,
-          ),
-          decoration:
-              BoxDecoration(
-            color:
-                const Color(
-              0xFFFFF3E0,
-            ),
-            borderRadius:
-                BorderRadius
-                    .circular(
-              18,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3E0),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: const Row(
-            mainAxisAlignment:
-                MainAxisAlignment
-                    .center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons
-                    .history_rounded,
-              ),
-              SizedBox(
-                width: 10,
-              ),
+              Icon(Icons.history_rounded),
+              SizedBox(width: 10),
               Text(
                 'Estás viendo una parte '
                 'anterior de tu aventura.',
@@ -663,35 +940,16 @@ class _StoryViewState
   }
 
   Widget _buildOpciones() {
-    final opciones =
-        _escenaActual.opciones;
+    final opciones = _escenaActual.opciones;
 
     if (opciones.isEmpty) {
       return Padding(
-        padding:
-            const EdgeInsets
-                .fromLTRB(
-          30,
-          0,
-          30,
-          22,
-        ),
+        padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
         child: Container(
-          padding:
-              const EdgeInsets.all(
-            18,
-          ),
-          decoration:
-              BoxDecoration(
-            color:
-                const Color(
-              0xFFFFF3E0,
-            ),
-            borderRadius:
-                BorderRadius
-                    .circular(
-              18,
-            ),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3E0),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: const Center(
             child: Text(
@@ -704,72 +962,52 @@ class _StoryViewState
     }
 
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        30,
-        0,
-        30,
-        22,
-      ),
+      padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
       child: Column(
         children: [
-          const Text(
-            '✨ ¿Qué debería hacer ahora?',
+          Text(
+            _status == StoryStatus.narrating
+                ? '🎧 Escuchando la narración...'
+                : '✨ ¿Qué debería hacer ahora?',
             style: TextStyle(
               fontSize: 20,
-              fontWeight:
-                  FontWeight.bold,
-              color:
-                  Color(
-                0xFF4E342E,
-              ),
+              fontWeight: FontWeight.bold,
+              color: _status == StoryStatus.narrating
+                  ? const Color(0xFFE65100)
+                  : const Color(0xFF4E342E),
             ),
           ),
 
-          const SizedBox(
-            height: 13,
-          ),
+          if (_status == StoryStatus.narrating) ...[
+            const SizedBox(height: 5),
+            const Text(
+              'Las decisiones se habilitarán al terminar o al pulsar Detener.',
+              style: TextStyle(fontSize: 14, color: Color(0xFF8D6E63)),
+            ),
+          ],
+
+          const SizedBox(height: 13),
 
           Wrap(
-            alignment:
-                WrapAlignment.center,
+            alignment: WrapAlignment.center,
             spacing: 12,
             runSpacing: 12,
-            children:
-                opciones.map(
-              (opcion) {
-                return FilledButton
-                    .tonal(
-                  onPressed:
-                      _estaProcesando
-                          ? null
-                          : () {
-                              _seleccionarOpcion(
-                                opcion,
-                              );
-                            },
-                  style:
-                      FilledButton
-                          .styleFrom(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal:
-                          25,
-                      vertical:
-                          18,
-                    ),
+            children: opciones.map((opcion) {
+              return FilledButton.tonal(
+                onPressed: _estaProcesando
+                    ? null
+                    : () {
+                        _seleccionarOpcion(opcion);
+                      },
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 25,
+                    vertical: 18,
                   ),
-                  child: Text(
-                    opcion,
-                    style:
-                        const TextStyle(
-                      fontSize: 16,
-                    ),
-                  ),
-                );
-              },
-            ).toList(),
+                ),
+                child: Text(opcion, style: const TextStyle(fontSize: 16)),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -778,59 +1016,34 @@ class _StoryViewState
 
   Widget _buildGenerando() {
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        30,
-        0,
-        30,
-        22,
-      ),
+      padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
       child: Container(
-        padding:
-            const EdgeInsets.all(
-          20,
-        ),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color:
-              const Color(
-            0xFFFFF3E0,
-          ),
-          borderRadius:
-              BorderRadius.circular(
-            18,
-          ),
+          color: const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(
               width: 24,
               height: 24,
-              child:
-                  CircularProgressIndicator(
-                strokeWidth: 3,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 3),
             ),
 
-            const SizedBox(
-              width: 16,
-            ),
+            const SizedBox(width: 16),
 
             Flexible(
               child: Text(
-                _opcionSeleccionada ==
-                        null
+                _opcionSeleccionada == null
                     ? 'Creando la siguiente '
-                        'parte de tu aventura...'
+                          'parte de tu aventura...'
                     : '✨ '
-                        '"${_opcionSeleccionada!}" '
-                        'está cambiando '
-                        'la historia...',
-                style:
-                    const TextStyle(
-                  fontSize: 17,
-                ),
+                          '"${_opcionSeleccionada!}" '
+                          'está cambiando '
+                          'la historia...',
+                style: const TextStyle(fontSize: 17),
               ),
             ),
           ],
@@ -841,57 +1054,26 @@ class _StoryViewState
 
   Widget _buildError() {
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        30,
-        0,
-        30,
-        22,
-      ),
+      padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
       child: Container(
-        padding:
-            const EdgeInsets.all(
-          20,
-        ),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color:
-              const Color(
-            0xFFFFEBEE,
-          ),
-          borderRadius:
-              BorderRadius.circular(
-            18,
-          ),
+          color: const Color(0xFFFFEBEE),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons
-                  .auto_awesome_rounded,
-              size: 32,
-            ),
+            const Icon(Icons.auto_awesome_rounded, size: 32),
 
-            const SizedBox(
-              width: 16,
-            ),
+            const SizedBox(width: 16),
 
-            Expanded(
-              child: Text(
-                _mensajeError ??
-                    'Ocurrió un problema.',
-              ),
-            ),
+            Expanded(child: Text(_mensajeError ?? 'Ocurrió un problema.')),
 
-            const SizedBox(
-              width: 16,
-            ),
+            const SizedBox(width: 16),
 
             FilledButton(
-              onPressed:
-                  _reintentar,
-              child: const Text(
-                'Reintentar',
-              ),
+              onPressed: _reintentar,
+              child: const Text('Reintentar'),
             ),
           ],
         ),
@@ -901,60 +1083,32 @@ class _StoryViewState
 
   Widget _buildFinal() {
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        30,
-        0,
-        30,
-        22,
-      ),
+      padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
       child: Container(
-        padding:
-            const EdgeInsets.all(
-          20,
-        ),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color:
-              const Color(
-            0xFFE8F5E9,
-          ),
-          borderRadius:
-              BorderRadius.circular(
-            18,
-          ),
+          color: const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
               '🎉 ¡Has llegado al final '
               'de esta aventura!',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
-            if (widget
-                    .onIrEvaluacion !=
-                null) ...[
-              const SizedBox(
-                width: 25,
-              ),
+            if (widget.onIrEvaluacion != null) ...[
+              const SizedBox(width: 25),
 
               FilledButton.icon(
-                onPressed:
-                    widget
-                        .onIrEvaluacion,
-                icon: const Icon(
-                  Icons.quiz_rounded,
-                ),
-                label:
-                    const Text(
-                  'Ir a las preguntas',
-                ),
+                onPressed: () {
+                  _detenerNarracion();
+                  widget.onIrEvaluacion?.call();
+                },
+                icon: const Icon(Icons.quiz_rounded),
+                label: const Text('Ir a las preguntas'),
               ),
             ],
           ],
@@ -967,25 +1121,18 @@ class _StoryViewState
     return Scaffold(
       body: Center(
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
               'El cuento todavía '
               'no tiene escenas.',
             ),
 
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
 
             FilledButton(
-              onPressed:
-                  widget.onSalir,
-              child:
-                  const Text(
-                'Volver',
-              ),
+              onPressed: widget.onSalir,
+              child: const Text('Volver'),
             ),
           ],
         ),

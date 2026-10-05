@@ -1,5 +1,6 @@
 import '../models/cuento.dart';
 import '../models/escena.dart';
+import '../models/pdf_story_data.dart';
 
 class NarrativaService {
   String construirContexto({
@@ -7,9 +8,7 @@ class NarrativaService {
     required String decision,
   }) {
     final escenasOrdenadas = [...escenas]
-      ..sort(
-        (a, b) => a.numero.compareTo(b.numero),
-      );
+      ..sort((a, b) => a.numero.compareTo(b.numero));
 
     final buffer = StringBuffer();
 
@@ -20,9 +19,7 @@ class NarrativaService {
       );
     }
 
-    buffer.writeln(
-      'Decisión del estudiante: $decision',
-    );
+    buffer.writeln('Decisión del estudiante: $decision');
 
     buffer.writeln(
       'Generar una continuación coherente, '
@@ -60,9 +57,7 @@ class NarrativaService {
     if (cuento.decisiones.isNotEmpty) {
       buffer.writeln();
 
-      buffer.writeln(
-        'Decisiones tomadas por el estudiante:',
-      );
+      buffer.writeln('Decisiones tomadas por el estudiante:');
 
       for (final decision in cuento.decisiones) {
         buffer.writeln(
@@ -79,9 +74,7 @@ class NarrativaService {
       '${escenaActual.contenido}',
     );
 
-    buffer.writeln(
-      'Nueva decisión: $decision',
-    );
+    buffer.writeln('Nueva decisión: $decision');
 
     buffer.writeln();
 
@@ -93,9 +86,11 @@ class NarrativaService {
     return buffer.toString();
   }
 
-  Escena crearEscenaInicialDemo({
-    required String nombrePersonaje,
-  }) {
+  // =========================================================
+  // ESCENA INICIAL DESDE DIBUJO
+  // =========================================================
+
+  Escena crearEscenaInicialDemo({required String nombrePersonaje}) {
     return Escena(
       numero: 1,
       contenido:
@@ -111,63 +106,125 @@ class NarrativaService {
     );
   }
 
+  // =========================================================
+  // ESCENA INICIAL DESDE PDF REAL
+  // =========================================================
+
+  Escena crearEscenaInicialDesdePdfDemo({
+    required String nombrePersonaje,
+    required PdfStoryData datosPdf,
+  }) {
+    final titulo = datosPdf.tituloDetectado ?? datosPdf.nombreArchivo;
+    final tieneAnalisis =
+        datosPdf.resumen != null && datosPdf.resumen!.trim().isNotEmpty;
+
+    if (tieneAnalisis) {
+      final escenario =
+          (datosPdf.escenario != null && datosPdf.escenario!.trim().isNotEmpty)
+          ? datosPdf.escenario!.trim()
+          : 'un lugar lleno de sorpresas';
+      final conflicto =
+          (datosPdf.conflictoPrincipal != null &&
+              datosPdf.conflictoPrincipal!.trim().isNotEmpty)
+          ? datosPdf.conflictoPrincipal!.trim()
+          : 'un gran enigma por resolver';
+
+      final contenido =
+          '$nombrePersonaje comienza su aventura en "$titulo".\n\n'
+          'La historia se sitúa en $escenario. Todo parece tranquilo hasta que se presenta '
+          'una situación importante: $conflicto. $nombrePersonaje sabe que debe actuar con '
+          'valentía e ingenio para descubrir qué está sucediendo.';
+
+      return Escena(
+        numero: 1,
+        contenido: contenido,
+        opciones: [
+          'Avanzar por la ruta principal para investigar el problema',
+          'Explorar un camino alternativo en busca de pistas',
+          'Observar los alrededores y consultar con los presentes',
+        ],
+      );
+    }
+
+    final fragmentoLimpio = _obtenerFragmentoInicialLimpio(
+      datosPdf.textoExtraido,
+      limite: 450,
+    );
+
+    return Escena(
+      numero: 1,
+      contenido:
+          '$nombrePersonaje comienza su aventura dentro de la historia "$titulo".\n\n'
+          '$fragmentoLimpio',
+      opciones: [
+        'Avanzar por el camino principal',
+        'Explorar una ruta diferente',
+        'Investigar con cuidado antes de decidir',
+      ],
+    );
+  }
+
+  String _obtenerFragmentoInicialLimpio(String texto, {required int limite}) {
+    // Filtrar metadatos editoriales comunes, páginas, ISBNs, etc.
+    var limpio = texto
+        .replaceAll(RegExp(r'page\s+\d+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'p[aá]gina\s+\d+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'isbn[\s:\d-]+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'cc-by[\s\d.-]+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'pratham\s+books', caseSensitive: false), '')
+        .replaceAll(RegExp(r'storyweaver', caseSensitive: false), '')
+        .trim();
+
+    if (limpio.length <= limite) {
+      return limpio;
+    }
+
+    final fragmento = limpio.substring(0, limite);
+    final ultimoPunto = fragmento.lastIndexOf('.');
+
+    if (ultimoPunto > 100) {
+      return fragmento.substring(0, ultimoPunto + 1);
+    }
+
+    final ultimoEspacio = fragmento.lastIndexOf(' ');
+    if (ultimoEspacio <= 0) {
+      return '$fragmento...';
+    }
+
+    return '${fragmento.substring(0, ultimoEspacio)}...';
+  }
+
+  // =========================================================
+  // GENERACIÓN DE CONTINUACIONES
+  // =========================================================
+
   Future<Escena> generarSiguienteEscena({
     required Cuento cuento,
     required Escena escenaActual,
     required String decision,
   }) async {
-    /*
-     * Este contexto será el que posteriormente
-     * se enviará a Gemini.
-     */
     construirContextoCompleto(
       cuento: cuento,
       escenaActual: escenaActual,
       decision: decision,
     );
 
-    /*
-     * Simulación temporal del tiempo de respuesta
-     * de la IA.
-     */
-    await Future.delayed(
-      const Duration(
-        milliseconds: 1200,
-      ),
-    );
+    await Future.delayed(const Duration(milliseconds: 1200));
 
-    final siguienteNumero =
-        escenaActual.numero + 1;
+    final siguienteNumero = escenaActual.numero + 1;
 
-    /*
-     * Solo para probar el flujo.
-     *
-     * Cuando conectemos Gemini,
-     * la IA determinará cuándo termina
-     * la historia según nuestras reglas.
-     */
-    final esFinal =
-        siguienteNumero >= 4;
+    final esFinal = siguienteNumero >= 4;
 
-    final contenido =
-        _generarContenidoDemo(
-      nombrePersonaje:
-          cuento.personajePrincipal,
+    final contenido = _generarContenidoDemo(
+      nombrePersonaje: cuento.personajePrincipal,
       decision: decision,
-      numeroEscena:
-          siguienteNumero,
+      numeroEscena: siguienteNumero,
     );
 
     final opciones = esFinal
         ? <String>[]
-        : _generarOpcionesContextualesDemo(
-            nombrePersonaje:
-                cuento.personajePrincipal,
-            decisionAnterior:
-                decision,
-            contenido:
-                contenido,
-          );
+        : _generarOpcionesContextualesDemo(decisionAnterior: decision);
 
     return Escena(
       numero: siguienteNumero,
@@ -191,67 +248,38 @@ class NarrativaService {
   }
 
   List<String> _generarOpcionesContextualesDemo({
-    required String nombrePersonaje,
     required String decisionAnterior,
-    required String contenido,
   }) {
-    final decision =
-        decisionAnterior.toLowerCase();
+    final decision = decisionAnterior.toLowerCase();
 
-    /*
-     * Estas reglas existen únicamente para
-     * simular alternativas variables mientras
-     * todavía no conectamos Gemini.
-     */
-
-    if (decision.contains('luz') ||
-        decision.contains('luces')) {
+    if (decision.contains('original')) {
       return [
-        'Acercarse con cuidado a la luz',
-        'Descubrir qué produce el resplandor',
-        'Buscar pistas alrededor de las luces',
+        'Continuar con lo que sucede en la historia',
+        'Seguir al personaje principal',
+        'Descubrir qué ocurre después',
       ];
     }
 
-    if (decision.contains('sonido') ||
-        decision.contains('melod')) {
+    if (decision.contains('diferente') || decision.contains('ruta')) {
       return [
-        'Seguir escuchando atentamente',
-        'Buscar quién produce el sonido',
-        'Acercarse lentamente al lugar',
+        'Tomar un camino que no aparece en el cuento',
+        'Buscar una solución diferente',
+        'Cambiar una decisión importante',
       ];
     }
 
-    if (decision.contains('bosque') ||
-        decision.contains('árbol')) {
+    if (decision.contains('observar')) {
       return [
-        'Explorar un sendero entre los árboles',
-        'Buscar huellas en el suelo',
-        'Observar lo que hay detrás de los árboles',
-      ];
-    }
-
-    if (decision.contains('hablar')) {
-      return [
-        'Hacer una nueva pregunta',
-        'Escuchar atentamente la respuesta',
-        'Preguntar si necesita ayuda',
-      ];
-    }
-
-    if (decision.contains('investigar') ||
-        decision.contains('explorar')) {
-      return [
-        'Revisar una pista encontrada',
-        'Explorar una zona diferente',
-        'Seguir las señales del camino',
+        'Buscar pistas en la escena',
+        'Observar a los personajes',
+        'Investigar antes de continuar',
       ];
     }
 
     return [
-      'Observar con atención lo que apareció',
-      'Buscar una pista antes de continuar',
-      'Avanzar con cuidado hacia lo desconocido',
+      'Seguir avanzando con cuidado',
+      'Buscar una pista',
+      'Explorar otra posibilidad',
     ];
   }
 }

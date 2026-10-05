@@ -4,11 +4,7 @@ class HomeView extends StatelessWidget {
   final VoidCallback onDibujar;
   final VoidCallback onUsarPdf;
 
-  const HomeView({
-    super.key,
-    required this.onDibujar,
-    required this.onUsarPdf,
-  });
+  const HomeView({super.key, required this.onDibujar, required this.onUsarPdf});
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +12,7 @@ class HomeView extends StatelessWidget {
       backgroundColor: const Color(0xFFFFF8F0),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 40,
-            vertical: 32,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
           child: Column(
             children: [
               const SizedBox(height: 12),
@@ -37,10 +30,7 @@ class HomeView extends StatelessWidget {
 
               const Text(
                 'Elige cómo quieres comenzar tu aventura',
-                style: TextStyle(
-                  fontSize: 20,
-                  color: Color(0xFF6D4C41),
-                ),
+                style: TextStyle(fontSize: 20, color: Color(0xFF6D4C41)),
               ),
 
               const SizedBox(height: 48),
@@ -52,8 +42,7 @@ class HomeView extends StatelessWidget {
                     _OpcionCard(
                       icono: Icons.brush,
                       titulo: 'Dibujar',
-                      descripcion:
-                          'Crea un dibujo y conviértelo en el inicio de una historia mágica.',
+                      descripcion: 'Crea un dibujo y conviértelo en el inicio de una historia mágica.',
                       onTap: onDibujar,
                     ),
 
@@ -62,8 +51,7 @@ class HomeView extends StatelessWidget {
                     _OpcionCard(
                       icono: Icons.picture_as_pdf,
                       titulo: 'Usar un PDF',
-                      descripcion:
-                          'Selecciona una lectura y transfórmala en una aventura interactiva.',
+                      descripcion: 'Selecciona una lectura y transfórmala en una aventura interactiva.',
                       onTap: onUsarPdf,
                     ),
                   ],
