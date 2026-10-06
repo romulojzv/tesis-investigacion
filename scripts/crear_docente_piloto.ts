@@ -32,18 +32,18 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-async function main() {
-  console.log(`Aprovisionando cuenta docente para: ${email}...`);
+async function main(nombreDocente: string, emailDocente: string, passDocente: string) {
+  console.log(`Aprovisionando cuenta docente para: ${emailDocente}...`);
 
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
+    email: emailDocente,
+    password: passDocente,
     email_confirm: true,
     app_metadata: {
       rol: 'docente', // Validado obligatoriamente por handle_new_user
     },
     user_metadata: {
-      nombre: nombre.trim(),
+      nombre: nombreDocente.trim(),
     },
   });
 
@@ -58,4 +58,4 @@ async function main() {
   console.log(`   Rol:   docente`);
 }
 
-main();
+main(nombre, email, password);

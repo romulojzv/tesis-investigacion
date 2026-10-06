@@ -28,13 +28,13 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-async function main() {
+async function main(nombreAula: string, codigoAula: string, emailDoc?: string, idDoc?: string) {
   console.log('Iniciando creación de aula de prueba...');
 
-  let targetDocenteId = docenteId;
+  let targetDocenteId = idDoc;
 
-  if (!targetDocenteId && docenteEmail) {
-    console.log(`Localizando usuario docente con correo: ${docenteEmail}...`);
+  if (!targetDocenteId && emailDoc) {
+    console.log(`Localizando usuario docente con correo: ${emailDoc}...`);
     const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
       page: 1,
       perPage: 100,
@@ -46,15 +46,20 @@ async function main() {
     }
 
     const matchedUser = usersData.users.find(
-      (u) => u.email?.toLowerCase() === docenteEmail.toLowerCase().trim()
+      (u) => u.email?.toLowerCase() === emailDoc.toLowerCase().trim()
     );
 
     if (!matchedUser) {
-      console.error(`❌ No se encontró usuario en Auth con el email: ${docenteEmail}`);
+      console.error(`❌ No se encontró usuario en Auth con el email: ${emailDoc}`);
       process.exit(1);
     }
 
     targetDocenteId = matchedUser.id;
+  }
+
+  if (!targetDocenteId) {
+    console.error('❌ No se pudo determinar el ID del docente.');
+    process.exit(1);
   }
 
   // 1. Verificar perfil y rol en public.profiles
@@ -74,8 +79,8 @@ async function main() {
     process.exit(1);
   }
 
-  const cleanNombre = aulaNombre.trim();
-  const cleanCodigo = aulaCodigo.trim().toUpperCase();
+  const cleanNombre = nombreAula.trim();
+  const cleanCodigo = codigoAula.trim().toUpperCase();
 
   // 2. Comprobar si el código de aula ya existe
   const { data: aulaExistente } = await supabaseAdmin
@@ -114,4 +119,4 @@ async function main() {
   console.log(`   Docente:     ${profile.nombre} (${profile.id})`);
 }
 
-main();
+main(aulaNombre, aulaCodigo, docenteEmail, docenteId);
