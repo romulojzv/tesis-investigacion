@@ -27,3 +27,9 @@ verify_jwt = false
 import_map = "./functions/generar-imagen/deno.json"
 entrypoint = "./functions/generar-imagen/index.ts"
 
+[functions.crear-estudiante]
+enabled = true
+verify_jwt = true
+import_map = "./functions/crear-estudiante/deno.json"
+entrypoint = "./functions/crear-estudiante/index.ts"
+
