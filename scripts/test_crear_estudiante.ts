@@ -1,6 +1,14 @@
 // scripts/test_crear_estudiante.ts
 import { createClient } from '@supabase/supabase-js';
 
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile();
+  } catch {
+    // Continúa con variables del sistema si .env no existe
+  }
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY;
