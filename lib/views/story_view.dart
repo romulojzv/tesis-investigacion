@@ -56,7 +56,7 @@ class _StoryViewState extends State<StoryView> {
   late final NarracionService _narracionService;
 
   ControladorReveladoTexto? _controladorRevelado;
-  String _textoReveladoActual = '';
+  late final ValueNotifier<String> _textoReveladoNotifier;
   final Set<int> _escenasLeidas = {};
 
   final Map<int, EstadoImagenEscena> _estadosImagen = {};
@@ -87,6 +87,8 @@ class _StoryViewState extends State<StoryView> {
   void initState() {
     super.initState();
 
+    _textoReveladoNotifier = ValueNotifier<String>('');
+
     _narracionService = widget.narracionService ?? NarracionService();
     _narracionService.onEstadoCambio = (estado) {
       if (mounted) {
@@ -102,7 +104,7 @@ class _StoryViewState extends State<StoryView> {
     _narracionService.inicializar();
 
     if (widget.cuento.escenas.isNotEmpty) {
-      _textoReveladoActual = _escenaActual.contenido;
+      _textoReveladoNotifier.value = _escenaActual.contenido;
       _prepararEscenaActual();
     }
   }
@@ -112,6 +114,7 @@ class _StoryViewState extends State<StoryView> {
     _timerAutoNarracion?.cancel();
     _controladorRevelado?.dispose();
     _narracionService.dispose();
+    _textoReveladoNotifier.dispose();
     super.dispose();
   }
 
@@ -146,7 +149,7 @@ class _StoryViewState extends State<StoryView> {
 
     if (yaLeida) {
       // Al retroceder o volver a una escena ya leída, se muestra completa inmediatamente
-      _textoReveladoActual = escena.contenido;
+      _textoReveladoNotifier.value = escena.contenido;
       _controladorRevelado?.detener(mostrarTextoCompleto: true);
     } else {
       if (widget.autoNarrar) {
@@ -162,7 +165,7 @@ class _StoryViewState extends State<StoryView> {
           factorAjusteRevelado:
               widget.controller.narrativaConfig.factorAjusteRevelado,
         );
-        _textoReveladoActual = _controladorRevelado!.textoVisible;
+        _textoReveladoNotifier.value = _controladorRevelado!.textoVisible;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -176,7 +179,7 @@ class _StoryViewState extends State<StoryView> {
           });
         });
       } else {
-        _textoReveladoActual = escena.contenido;
+        _textoReveladoNotifier.value = escena.contenido;
       }
     }
   }
@@ -201,25 +204,21 @@ class _StoryViewState extends State<StoryView> {
           widget.controller.narrativaConfig.factorAjusteRevelado,
     );
 
+    _textoReveladoNotifier.value = _controladorRevelado!.textoVisible;
     setState(() {
       _status = StoryStatus.narrating;
-      _textoReveladoActual = _controladorRevelado!.textoVisible;
       _mensajeError = null;
     });
 
     _controladorRevelado!.iniciar(
       onTick: (texto) {
         if (mounted && _escenaActual.numero == escena.numero) {
-          setState(() {
-            _textoReveladoActual = texto;
-          });
+          _textoReveladoNotifier.value = texto;
         }
       },
       onCompleto: () {
         if (mounted && _escenaActual.numero == escena.numero) {
-          setState(() {
-            _textoReveladoActual = escena.contenido;
-          });
+          _textoReveladoNotifier.value = escena.contenido;
         }
       },
     );
@@ -239,8 +238,8 @@ class _StoryViewState extends State<StoryView> {
     } finally {
       _controladorRevelado?.mostrarTodo();
       if (mounted && _escenaActual.numero == escena.numero) {
+        _textoReveladoNotifier.value = escena.contenido;
         setState(() {
-          _textoReveladoActual = escena.contenido;
           _actualizarEstadoEscena();
         });
       }
@@ -251,8 +250,8 @@ class _StoryViewState extends State<StoryView> {
     await _narracionService.detener();
     _controladorRevelado?.mostrarTodo();
     if (mounted) {
+      _textoReveladoNotifier.value = _escenaActual.contenido;
       setState(() {
-        _textoReveladoActual = _escenaActual.contenido;
         _actualizarEstadoEscena();
       });
     }
@@ -712,12 +711,19 @@ class _StoryViewState extends State<StoryView> {
   }
 
   Widget _buildImagen() {
+    return RepaintBoundary(child: _buildImagenContenido());
+  }
+
+  Widget _buildImagenContenido() {
     final escena = _escenaActual;
     final tieneUrl =
         escena.imageUrl != null && escena.imageUrl!.trim().isNotEmpty;
-    final estado =
-        _estadosImagen[escena.numero] ??
-        (tieneUrl ? EstadoImagenEscena.cargada : EstadoImagenEscena.sinImagen);
+    final estado = _estadosImagen[escena.numero] == EstadoImagenEscena.generando
+        ? EstadoImagenEscena.generando
+        : (tieneUrl
+              ? EstadoImagenEscena.cargada
+              : (_estadosImagen[escena.numero] ??
+                    EstadoImagenEscena.sinImagen));
 
     switch (estado) {
       case EstadoImagenEscena.generando:
@@ -796,6 +802,7 @@ class _StoryViewState extends State<StoryView> {
       case EstadoImagenEscena.cargada:
         if (tieneUrl) {
           return IlustracionEscenaWidget(
+            key: ValueKey('ilustracion_${widget.cuento.id}_${escena.numero}'),
             imageUrl: escena.imageUrl!,
             width: double.infinity,
             height: double.infinity,
@@ -874,22 +881,27 @@ class _StoryViewState extends State<StoryView> {
   }
 
   Widget _buildTexto() {
-    final textoAMostrar = _textoReveladoActual.isNotEmpty
-        ? _textoReveladoActual
-        : _escenaActual.contenido;
+    return ValueListenableBuilder<String>(
+      valueListenable: _textoReveladoNotifier,
+      builder: (context, textoVisible, _) {
+        final textoAMostrar = textoVisible.isNotEmpty
+            ? textoVisible
+            : _escenaActual.contenido;
 
-    return Padding(
-      padding: const EdgeInsets.all(38),
-      child: SingleChildScrollView(
-        child: SelectableText(
-          textoAMostrar,
-          style: const TextStyle(
-            fontSize: 23,
-            height: 1.7,
-            color: Color(0xFF3E2723),
+        return Padding(
+          padding: const EdgeInsets.all(38),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              textoAMostrar,
+              style: const TextStyle(
+                fontSize: 23,
+                height: 1.7,
+                color: Color(0xFF3E2723),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

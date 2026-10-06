@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../widgets/ilustracion_escena_widget.dart';
 import 'decision_narrativa.dart';
 import 'escena.dart';
 
@@ -137,6 +138,59 @@ class Cuento {
     decisiones.sort((a, b) => a.numeroEscena.compareTo(b.numeroEscena));
 
     return true;
+  }
+
+  Uint8List? _referenciaGeneradaEscena1Bytes;
+
+  /// Retorna los bytes de la ilustración generada para la escena 1 si existe
+  Uint8List? get referenciaGeneradaEscena1Bytes =>
+      _referenciaGeneradaEscena1Bytes;
+
+  /// Registra los bytes de la ilustración generada para la escena 1 en modo automático
+  void registrarReferenciaEscena1(Uint8List bytes) {
+    if (referenciaVisualPng == null && bytes.isNotEmpty) {
+      _referenciaGeneradaEscena1Bytes = Uint8List.fromList(bytes);
+    }
+  }
+
+  /// Retorna la referencia visual a utilizar para ilustrar la escena especificada.
+  /// Prioridad estricta:
+  /// 1. Dibujo del estudiante o imagen de PDF ([referenciaVisualPng]):
+  ///    Tiene máxima prioridad y se usa para TODAS las escenas (1, 2, 3, 4...).
+  /// 2. Modo diseño automático:
+  ///    - Escena 1: retorna null (usa text-to-image).
+  ///    - Escenas 2, 3, 4...: retorna los bytes de la ilustración de la escena 1
+  ///      (manteniendo la misma referencia base estable y evitando drift acumulativo).
+  Uint8List? obtenerReferenciaVisualParaEscena(int numeroEscena) {
+    // 1. Dibujo original o imagen PDF siempre tiene prioridad absoluta
+    if (referenciaVisualPng != null && referenciaVisualPng!.isNotEmpty) {
+      return referenciaVisualPng;
+    }
+
+    // 2. Para escenas posteriores en modo automático, usar la imagen base de la escena 1
+    if (numeroEscena > 1) {
+      if (_referenciaGeneradaEscena1Bytes != null &&
+          _referenciaGeneradaEscena1Bytes!.isNotEmpty) {
+        return _referenciaGeneradaEscena1Bytes;
+      }
+
+      // Reutilizar la imagen ya generada de la escena 1 si existe
+      final escena1 = obtenerEscena(1);
+      if (escena1 != null &&
+          escena1.imageUrl != null &&
+          escena1.imageUrl!.trim().isNotEmpty) {
+        final url = escena1.imageUrl!.trim();
+        if (IlustracionEscenaWidget.esDataUri(url)) {
+          final bytes = IlustracionEscenaWidget.decodificarDataUri(url);
+          if (bytes != null && bytes.isNotEmpty) {
+            _referenciaGeneradaEscena1Bytes = bytes;
+            return bytes;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   /// Asocia o actualiza la imagen de una escena existente sin regenerar la escena.

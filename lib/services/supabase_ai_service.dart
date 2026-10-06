@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/generated_scene.dart';
@@ -104,6 +105,14 @@ class SupabaseAiService implements AiService {
         throw ArgumentError('No existe contexto narrativo.');
       }
     }
+
+    debugPrint(
+      '[DIAGNÓSTICO D] Antes de invocar generar-escena: '
+      'titulo="$titulo", '
+      'personajePrincipal="$personajePrincipal", '
+      'numeroEscena=$numeroEscena, '
+      'descripcionPersonaje="${descripcionPersonaje ?? '(null)'}"',
+    );
 
     final response = await client.functions
         .invoke(

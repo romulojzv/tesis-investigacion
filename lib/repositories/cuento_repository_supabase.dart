@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/cuento.dart';
@@ -33,6 +34,12 @@ class CuentoRepositorySupabase implements CuentoRepository {
 
   @override
   Future<void> guardarCuento(Cuento cuento) async {
+    debugPrint(
+      '[DIAGNÓSTICO C] Antes de guardar Supabase: '
+      'cuento.id="${cuento.id}", '
+      'descripcion_personaje="${cuento.descripcionPersonaje ?? '(null)'}"',
+    );
+
     await client.from('cuentos').upsert({
       'id': _textoSeguro(cuento.id),
       'titulo': _textoSeguro(cuento.titulo),

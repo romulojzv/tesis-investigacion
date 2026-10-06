@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import '../models/character_customization.dart';
 import '../models/cuento.dart';
@@ -6,15 +6,14 @@ import '../models/decision_narrativa.dart';
 import '../models/escena.dart';
 import '../models/generated_scene.dart';
 import '../models/pdf_story_data.dart';
-
 import '../repositories/cuento_repository.dart';
-
 import '../services/ai_service.dart';
 import '../services/contexto_narrativo_service.dart';
 import '../services/document_service.dart';
 import '../models/narrativa_config.dart';
 import '../services/image_service.dart';
 import '../services/narrativa_service.dart';
+import '../widgets/ilustracion_escena_widget.dart';
 
 class StoryController {
   final AiService aiService;
@@ -178,6 +177,13 @@ class StoryController {
       descripcionPersonaje: descripcionPersonaje,
       referenciaVisualPng:
           dibujoReferenciaPng ?? personalizacion.imagenReferencia,
+    );
+
+    debugPrint(
+      '[DIAGNÓSTICO B] Al construir Cuento: '
+      'cuento.id="${cuento.id}", '
+      'personajePrincipal="${cuento.personajePrincipal}", '
+      'descripcionPersonaje="${cuento.descripcionPersonaje ?? '(null)'}"',
     );
 
     Escena escenaInicial;
@@ -651,6 +657,10 @@ class StoryController {
     }
 
     try {
+      final referenciaBytes = cuento.obtenerReferenciaVisualParaEscena(
+        numeroEscena,
+      );
+
       final solicitud = SolicitudImagenEscena(
         cuentoId: cuento.id,
         numeroEscena: numeroEscena,
@@ -658,7 +668,7 @@ class StoryController {
         nombreProtagonista: cuento.personajePrincipal,
         descripcionPersonaje: cuento.descripcionPersonaje,
         escenario: cuento.escenarioOriginal,
-        referenciaVisualBytes: cuento.referenciaVisualPng,
+        referenciaVisualBytes: referenciaBytes,
       );
 
       final url = await imageService!
@@ -666,10 +676,26 @@ class StoryController {
           .timeout(const Duration(seconds: 40));
 
       if (url.trim().isNotEmpty) {
-        cuento.asociarImagenAEscena(numeroEscena, url.trim());
+        final urlFinal = url.trim();
+        cuento.asociarImagenAEscena(numeroEscena, urlFinal);
+
+        // Si es la escena 1 y no había referencia externa (modo automático),
+        // guardar los bytes de la escena 1 para que las escenas 2, 3 y 4 usen
+        // exactamente este perfil visual base estable.
+        if (numeroEscena == 1 && cuento.referenciaVisualPng == null) {
+          if (IlustracionEscenaWidget.esDataUri(urlFinal)) {
+            final bytesEscena1 = IlustracionEscenaWidget.decodificarDataUri(
+              urlFinal,
+            );
+            if (bytesEscena1 != null && bytesEscena1.isNotEmpty) {
+              cuento.registrarReferenciaEscena1(bytesEscena1);
+            }
+          }
+        }
+
         // Guardar la URL en la base de datos (escenas.image_url)
         await cuentoRepository.guardarCuento(cuento);
-        return url.trim();
+        return urlFinal;
       }
       return null;
     } catch (_) {

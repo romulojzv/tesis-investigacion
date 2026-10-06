@@ -33,7 +33,7 @@ class SolicitudImagenEscena {
     if (descripcionPersonaje != null &&
         descripcionPersonaje!.trim().isNotEmpty) {
       buffer.writeln(
-        'Apariencia del protagonista: ${descripcionPersonaje!.trim()}.',
+        'Rasgos base permanentes del protagonista: ${descripcionPersonaje!.trim()}.',
       );
     }
     if (escenario != null && escenario!.trim().isNotEmpty) {
@@ -41,7 +41,8 @@ class SolicitudImagenEscena {
     }
     buffer.writeln('Acción narrativa de la escena: ${contenidoEscena.trim()}.');
     buffer.writeln(
-      'Reglas de composición: Mantener consistencia visual del protagonista. '
+      'Reglas de composición: Mantener estrictamente la apariencia y rasgos base del protagonista en todas las ilustraciones. '
+      'Cualquier cambio de ropa o accesorio es puramente temporal por la acción de la escena y no altera sus rasgos base. '
       'NO incluir palabras, letras, títulos, globos de diálogo ni números dentro de la ilustración. '
       'Enfoque claro y accesible para niños de primaria.',
     );

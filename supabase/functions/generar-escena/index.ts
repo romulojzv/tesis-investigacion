@@ -158,8 +158,34 @@ Deno.serve(async (req) => {
     const descripcionPersonaje =
       body.descripcionPersonaje?.toString().trim() ?? '';
 
+    // LOG TEMPORAL DE DIAGNÓSTICO E
+    console.log('[DIAGNÓSTICO E] generar-escena recibido:', {
+      personajePrincipal,
+      numeroEscena,
+      esPersonajeNuevo,
+      descripcionPersonaje: descripcionPersonaje || '(vacío)',
+    });
+
     const textoFuenteLimitado =
       textoFuente.length > 8000 ? textoFuente.substring(0, 8000) : textoFuente;
+
+    const seccionFichaBase = descripcionPersonaje
+      ? `
+RASGOS BASE DEL PROTAGONISTA (CANÓNICOS Y PERMANENTES):
+"${descripcionPersonaje}"
+- Estos rasgos base son la fuente canónica y permanente del protagonista durante toda la aventura.
+- En la narración puedes redactarlos con fluidez y naturalidad respetando fielmente estos rasgos (por ejemplo, si su ficha indica vestimenta o accesorios específicos, mantén esos colores y características exactas; NO inventes otros colores ni rasgos contradictorios).
+- Solo pueden modificarse temporalmente si la propia acción de la escena lo exige (ejemplos: ponerse una capucha por lluvia, quitarse la mochila para cruzar un río nadando, ensuciarse la ropa en el camino). Dichas modificaciones temporales jamás redefinen su apariencia base ni sustituyen sus rasgos permanentes.
+`
+      : '';
+
+    const reglaNombreExacto = `
+REGLAS ESTRICTAS DE NOMBRE Y TRATAMIENTO:
+1. Usa estrictamente "${personajePrincipal}" como el nombre propio del protagonista.
+2. NO uses diminutivos no solicitados (por ejemplo, si el nombre es "${personajePrincipal}", no lo conviertas arbitrariamente en un diminutivo), salvo que el estudiante lo haya escrito con diminutivo originalmente.
+3. PROHIBIDO combinar la descripción con el nombre. NO llames al personaje "${personajePrincipal} ${descripcionPersonaje || ''}".
+4. NO conviertas objetos, ropa o características físicas en parte de su nombre compuesto.
+`;
 
     const instruccionProtagonista = esPersonajeNuevo
       ? `
@@ -168,28 +194,28 @@ El estudiante ha creado un protagonista NUEVO para vivir esta aventura.
 
 DATOS DEL PROTAGONISTA NUEVO:
 - Nombre: "${personajePrincipal}"
-${descripcionPersonaje ? `- Descripción: "${descripcionPersonaje}"` : '- Descripción: (Sin descripción física adicional)'}
+${descripcionPersonaje ? `- Descripción física y vestimenta: "${descripcionPersonaje}"` : '- Descripción: (Sin descripción física adicional)'}
 
-REGLAS ESTRICTAS DE IDENTIDAD Y NARRACIÓN:
-1. Usa "${personajePrincipal}" como el nombre propio del protagonista.
-2. La descripción sirve ÚNICAMENTE para definir su apariencia, vestimenta y características en la narración.
-3. PROHIBIDO combinar la descripción con el nombre. NO llames al personaje "${personajePrincipal} ${descripcionPersonaje || ''}".
-4. NO conviertas objetos, ropa o características físicas en parte de su nombre (bajo ninguna circunstancia uses apodos compuestos como "${personajePrincipal} mochila roja").
-5. Sí se permite narrar naturalmente sus acciones y objetos (por ejemplo: "${personajePrincipal} llevaba su característica mochila roja al hombro", "${personajePrincipal} observó el camino con atención").
-6. "${personajePrincipal}" reemplaza narrativamente al protagonista del documento original ("${personajeOriginal || 'protagonista original'}"). NO debes asumir automáticamente que conserva su apariencia o personalidad original.
-7. Bajo ninguna circunstancia uses el nombre original "${personajeOriginal}".
+${seccionFichaBase}
+${reglaNombreExacto}
+5. "${personajePrincipal}" reemplaza narrativamente al protagonista del documento original ("${personajeOriginal || 'protagonista original'}"). NO debes asumir automáticamente que conserva su apariencia o personalidad original.
+6. Bajo ninguna circunstancia uses el nombre original "${personajeOriginal}".
 `
       : fueRenombrado
       ? `
 ATENCIÓN CRÍTICA - PROTAGONISTA ORIGINAL RENOMBRADO:
 El personaje es exactamente el protagonista original de la historia ("${personajeOriginal}"), pero el estudiante ha decidido cambiar únicamente su nombre a "${personajePrincipal}".
 - "${personajePrincipal}" CONSERVA fielmente toda la personalidad, apariencia, descripción original, papel narrativo, habilidades y relaciones con los demás personajes de "${personajeOriginal}".
-${descripcionPersonaje ? `- Descripción y rasgos del protagonista: ${descripcionPersonaje}` : ''}
+${descripcionPersonaje ? `- Descripción y rasgos del protagonista: "${descripcionPersonaje}"` : ''}
+${reglaNombreExacto}
 - Debes utilizar exclusivamente "${personajePrincipal}". Bajo ninguna circunstancia uses el nombre antiguo "${personajeOriginal}".
 `
-      : (descripcionPersonaje
-          ? `\n- Descripción del protagonista: ${descripcionPersonaje}\n`
-          : '');
+      : `
+DATOS DEL PROTAGONISTA:
+- Nombre: "${personajePrincipal}"
+${seccionFichaBase}
+${reglaNombreExacto}
+`;
 
     let prompt = '';
 

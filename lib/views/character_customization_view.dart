@@ -197,6 +197,14 @@ class _CharacterCustomizationViewState
       _error = null;
     });
 
+    debugPrint(
+      '[DIAGNÓSTICO A] Al pulsar Continuar: '
+      'nombrePersonaje="$nombre", '
+      'descripcionPersonaje="${descripcion ?? '(null)'}", '
+      'mode=$_modo, '
+      'visualMode=$_modoVisual',
+    );
+
     widget.onContinuar(
       CharacterCustomization(
         mode: _modo,
@@ -474,7 +482,7 @@ class _CharacterCustomizationViewState
               maxLines: 3,
               decoration: InputDecoration(
                 labelText: 'Descripción breve del personaje',
-                hintText: 'Ejemplo: Lleva una mochila roja, tiene el cabello corto y es muy curiosa.',
+                hintText: 'Ejemplo: Lleva una capa azul, tiene ojos vivaces y es muy curiosa.',
                 helperText: '1 a 2 frases breves sobre su apariencia o características.',
                 alignLabelWithHint: true,
                 prefixIcon: const Padding(

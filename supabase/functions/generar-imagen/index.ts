@@ -128,15 +128,17 @@ function construirPromptVisual(params: {
     "Children's storybook illustration, warm and vibrant storybook art style, clean colorful digital watercolor, soft whimsical lighting, joyful atmosphere, high quality picture book for primary school children",
   );
 
-  // 2. Protagonista y descripción física diferenciados
+  // 2. Protagonista y descripción física diferenciados (Ficha canónica permanente)
   const desc = params.descripcionPersonaje?.trim();
   if (desc && desc.length > 0) {
     partes.push(
-      `Main character: ${params.personajePrincipal}, ${desc}. Keep the exact same protagonist character appearance, clothes and features`,
+      `Protagonist: ${params.personajePrincipal}. PERMANENT BASE CHARACTER TRAITS: ${desc}. ` +
+      `Maintain exact protagonist appearance, outfit colors, hair and accessories consistently throughout all scenes. ` +
+      `Temporary modifications apply only if required by scene action and do not redefine base appearance`,
     );
   } else {
     partes.push(
-      `Main character: ${params.personajePrincipal}. Consistent character appearance throughout the story`,
+      `Protagonist: ${params.personajePrincipal}. Consistent character appearance throughout the story`,
     );
   }
 
@@ -150,10 +152,12 @@ function construirPromptVisual(params: {
     `Story scene action (Scene ${params.numeroEscena}): ${params.contenidoEscena.trim()}`,
   );
 
-  // 5. Guía de consistencia si hay referencia previa
+  // 5. Guía de consistencia estricta si hay referencia previa (Escenas 2-4 o dibujo/PDF)
   if (params.tieneReferenciaVisual) {
     partes.push(
-      'Strict character consistency: Maintain protagonist facial features, hair, skin tone, colors and outfit from the provided input reference image',
+      'STRICT CHARACTER IDENTITY: The child/character in the input reference image is the exact same protagonist. ' +
+      'Maintain: face structure, skin tone, hairstyle, hair color, body proportions, base outfit, and permanent backpack/accessories from the reference image. ' +
+      'Change only: pose, facial expression, action, and setting/environment. Do not redesign the protagonist',
     );
   }
 

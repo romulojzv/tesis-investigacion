@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// Widget especializado para desplegar la ilustración de una escena.
 /// Soporta tanto URLs remotas (HTTP / HTTPS) como Data URIs temporales
 /// en formato Base64 (data:image/webp;base64,... o data:image/png;base64,...).
-class IlustracionEscenaWidget extends StatelessWidget {
+class IlustracionEscenaWidget extends StatefulWidget {
   final String imageUrl;
   final BoxFit fit;
   final double? width;
@@ -52,14 +52,59 @@ class IlustracionEscenaWidget extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final trimmed = imageUrl.trim();
+  State<IlustracionEscenaWidget> createState() =>
+      _IlustracionEscenaWidgetState();
+}
 
-    if (esDataUri(trimmed)) {
-      final bytes = decodificarDataUri(trimmed);
+class _IlustracionEscenaWidgetState extends State<IlustracionEscenaWidget> {
+  Uint8List? _cachedBytes;
+  bool _esDataUri = false;
+  bool _esHttp = false;
+  bool _errorDecodificacion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _procesarUrl(widget.imageUrl);
+  }
+
+  @override
+  void didUpdateWidget(covariant IlustracionEscenaWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _procesarUrl(widget.imageUrl);
+    }
+  }
+
+  void _procesarUrl(String url) {
+    final trimmed = url.trim();
+    if (IlustracionEscenaWidget.esDataUri(trimmed)) {
+      _esDataUri = true;
+      _esHttp = false;
+      final bytes = IlustracionEscenaWidget.decodificarDataUri(trimmed);
       if (bytes == null || bytes.isEmpty) {
-        if (errorBuilder != null) {
-          return errorBuilder!(
+        _cachedBytes = null;
+        _errorDecodificacion = true;
+      } else {
+        _cachedBytes = bytes;
+        _errorDecodificacion = false;
+      }
+    } else {
+      _esDataUri = false;
+      _cachedBytes = null;
+      _errorDecodificacion = false;
+      _esHttp = trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = widget.imageUrl.trim();
+
+    if (_esDataUri) {
+      if (_errorDecodificacion || _cachedBytes == null) {
+        if (widget.errorBuilder != null) {
+          return widget.errorBuilder!(
             context,
             const FormatException('Data URI inválido o no decodificable'),
             null,
@@ -69,32 +114,34 @@ class IlustracionEscenaWidget extends StatelessWidget {
       }
 
       return Image.memory(
-        bytes,
-        fit: fit,
-        width: width,
-        height: height,
-        errorBuilder: errorBuilder != null
+        _cachedBytes!,
+        fit: widget.fit,
+        width: widget.width,
+        height: widget.height,
+        gaplessPlayback: true,
+        errorBuilder: widget.errorBuilder != null
             ? (context, error, stackTrace) =>
-                  errorBuilder!(context, error, stackTrace)
+                  widget.errorBuilder!(context, error, stackTrace)
             : null,
       );
     }
 
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (_esHttp) {
       return Image.network(
         trimmed,
-        fit: fit,
-        width: width,
-        height: height,
-        errorBuilder: errorBuilder != null
+        fit: widget.fit,
+        width: widget.width,
+        height: widget.height,
+        gaplessPlayback: true,
+        errorBuilder: widget.errorBuilder != null
             ? (context, error, stackTrace) =>
-                  errorBuilder!(context, error, stackTrace)
+                  widget.errorBuilder!(context, error, stackTrace)
             : null,
       );
     }
 
-    if (errorBuilder != null) {
-      return errorBuilder!(
+    if (widget.errorBuilder != null) {
+      return widget.errorBuilder!(
         context,
         UnsupportedError('Esquema de URL no soportado: $trimmed'),
         null,
