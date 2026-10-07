@@ -50,6 +50,7 @@ class _StoryViewState extends State<StoryView> {
 
   StoryStatus _status = StoryStatus.reading;
 
+  bool _generandoSiguienteEscena = false;
   String? _opcionSeleccionada;
   String? _mensajeError;
 
@@ -79,7 +80,8 @@ class _StoryViewState extends State<StoryView> {
   }
 
   bool get _estaProcesando {
-    return _status == StoryStatus.generatingScene ||
+    return _generandoSiguienteEscena ||
+        _status == StoryStatus.generatingScene ||
         _status == StoryStatus.narrating;
   }
 
@@ -437,9 +439,14 @@ class _StoryViewState extends State<StoryView> {
   }
 
   Future<void> _seleccionarOpcion(String opcion) async {
-    if (!_esUltimaEscenaGenerada || _estaProcesando || _escenaActual.esFinal) {
+    if (_generandoSiguienteEscena ||
+        !_esUltimaEscenaGenerada ||
+        _estaProcesando ||
+        _escenaActual.esFinal) {
       return;
     }
+
+    _generandoSiguienteEscena = true;
 
     await _detenerNarracion();
 
@@ -496,6 +503,8 @@ class _StoryViewState extends State<StoryView> {
             'de tu aventura. '
             'Puedes intentarlo otra vez.';
       });
+    } finally {
+      _generandoSiguienteEscena = false;
     }
   }
 
@@ -585,12 +594,23 @@ class _StoryViewState extends State<StoryView> {
 
                 const SizedBox(height: 3),
 
-                Text(
-                  'Escena '
-                  '${_indiceEscenaActual + 1} '
-                  'de '
-                  '${widget.cuento.escenas.length}',
-                  style: const TextStyle(color: Color(0xFF795548)),
+                Builder(
+                  builder: (context) {
+                    final maxEscenas =
+                        widget.controller.narrativaConfig.maxEscenas;
+                    final totalMostrado =
+                        (widget.cuento.escenas.isNotEmpty &&
+                            widget.cuento.escenas.last.esFinal)
+                        ? widget.cuento.escenas.length
+                        : maxEscenas;
+                    return Text(
+                      'Escena '
+                      '${_indiceEscenaActual + 1} '
+                      'de '
+                      '$totalMostrado',
+                      style: const TextStyle(color: Color(0xFF795548)),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1006,7 +1026,7 @@ class _StoryViewState extends State<StoryView> {
             runSpacing: 12,
             children: opciones.map((opcion) {
               return FilledButton.tonal(
-                onPressed: _estaProcesando
+                onPressed: (_estaProcesando || _generandoSiguienteEscena)
                     ? null
                     : () {
                         _seleccionarOpcion(opcion);

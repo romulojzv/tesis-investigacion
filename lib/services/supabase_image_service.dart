@@ -40,10 +40,18 @@ class SupabaseImageService implements ImageService {
       );
     }
 
+    if (solicitud.referenciaAnteriorBytes != null &&
+        solicitud.referenciaAnteriorBytes!.isNotEmpty) {
+      body['referenciaAnchorBase64'] = base64Encode(
+        solicitud.referenciaAnteriorBytes!,
+      );
+    }
+
     debugPrint(
       '[SupabaseImageService] Solicitando ilustración a generar-imagen: '
       'cuento=${solicitud.cuentoId}, escena=${solicitud.numeroEscena}, '
-      'conReferencia=${solicitud.referenciaVisualBytes != null}',
+      'conReferencia=${solicitud.referenciaVisualBytes != null}, '
+      'conAnchor=${solicitud.referenciaAnteriorBytes != null}',
     );
 
     try {

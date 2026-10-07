@@ -13,4 +13,11 @@ class CuentoRepositoryMemoria implements CuentoRepository {
   Future<Cuento?> obtenerCuento(String id) async {
     return _cuentos[id];
   }
+
+  @override
+  Future<List<Cuento>> listarCuentosPorEstudiante(String estudianteId) async {
+    return _cuentos.values
+        .where((c) => c.estudianteId == estudianteId && !c.esDemo)
+        .toList();
+  }
 }

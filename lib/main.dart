@@ -14,11 +14,14 @@ import 'models/pdf_story_data.dart';
 import 'repositories/cuento_repository_supabase.dart';
 import 'services/document_service.dart';
 import 'services/narrativa_service.dart';
+import 'models/user_profile.dart';
+import 'services/auth_service.dart';
+import 'views/auth_gate.dart';
 import 'views/character_customization_view.dart';
 import 'views/document_view.dart';
 import 'views/draw_view.dart';
-import 'views/home_view.dart';
 import 'views/story_view.dart';
+import 'views/student_home_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,9 +108,13 @@ class _HomeRouterState extends State<_HomeRouter> {
 
   late final StoryController _storyController;
 
+  late final AuthService _authService;
+
   @override
   void initState() {
     super.initState();
+
+    _authService = AuthService(client: Supabase.instance.client);
 
     _narrativaService = NarrativaService();
 
@@ -154,8 +161,9 @@ class _HomeRouterState extends State<_HomeRouter> {
 
   Future<void> _crearCuentoDesdeDibujo(
     String nombrePersonaje,
-    Uint8List dibujoPng,
-  ) async {
+    Uint8List dibujoPng, {
+    String? descripcionPersonaje,
+  }) async {
     if (_creandoCuento) {
       return;
     }
@@ -169,6 +177,7 @@ class _HomeRouterState extends State<_HomeRouter> {
         id: id,
         nombrePersonaje: nombrePersonaje,
         dibujoReferenciaPng: dibujoPng,
+        descripcionPersonaje: descripcionPersonaje,
       );
 
       if (!mounted) {
@@ -436,14 +445,22 @@ class _HomeRouterState extends State<_HomeRouter> {
   // CALLBACK GENERAL DEL DIBUJO
   // =========================================================
 
-  void _alFinalizarDibujo(String nombrePersonaje, Uint8List dibujoPng) {
+  void _alFinalizarDibujo(
+    String nombrePersonaje,
+    Uint8List dibujoPng, {
+    String? descripcionPersonaje,
+  }) {
     if (_dibujoDesdePdf) {
       _crearCuentoPdfConDibujo(nombrePersonaje, dibujoPng);
 
       return;
     }
 
-    _crearCuentoDesdeDibujo(nombrePersonaje, dibujoPng);
+    _crearCuentoDesdeDibujo(
+      nombrePersonaje,
+      dibujoPng,
+      descripcionPersonaje: descripcionPersonaje,
+    );
   }
 
   // =========================================================
@@ -505,6 +522,15 @@ class _HomeRouterState extends State<_HomeRouter> {
 
   @override
   Widget build(BuildContext context) {
+    return AuthGate(
+      authService: _authService,
+      studentBuilder: (context, perfil) {
+        return _buildStudentFlow(perfil);
+      },
+    );
+  }
+
+  Widget _buildStudentFlow(UserProfile perfil) {
     switch (_pantalla) {
       // =====================================================
       // DIBUJO
@@ -514,14 +540,6 @@ class _HomeRouterState extends State<_HomeRouter> {
         final personalizacion = _personalizacionPdf;
 
         return DrawView(
-          /*
-           * Si llegamos desde PDF:
-           * se entrega el nombre ya elegido.
-           *
-           * Si llegamos desde Home:
-           * será null y DrawView preguntará
-           * el nombre normalmente.
-           */
           nombrePersonajeFijo: _dibujoDesdePdf
               ? personalizacion?.nombrePersonaje
               : null,
@@ -530,6 +548,14 @@ class _HomeRouterState extends State<_HomeRouter> {
 
           onContinuar: (nombre, dibujo) {
             _alFinalizarDibujo(nombre, dibujo);
+          },
+
+          onContinuarConDescripcion: (nombre, dibujo, descripcion) {
+            _alFinalizarDibujo(
+              nombre,
+              dibujo,
+              descripcionPersonaje: descripcion,
+            );
           },
         );
 
@@ -561,7 +587,7 @@ class _HomeRouterState extends State<_HomeRouter> {
         final datos = _pdfProcesado;
 
         if (datos == null) {
-          return _buildHome();
+          return _buildStudentHome(perfil);
         }
 
         return CharacterCustomizationView(
@@ -584,7 +610,7 @@ class _HomeRouterState extends State<_HomeRouter> {
         final cuento = _cuento;
 
         if (cuento == null) {
-          return _buildHome();
+          return _buildStudentHome(perfil);
         }
 
         return StoryView(
@@ -598,30 +624,39 @@ class _HomeRouterState extends State<_HomeRouter> {
         );
 
       // =====================================================
-      // HOME
+      // HOME ESTUDIANTE
       // =====================================================
 
       case AppScreen.home:
-        return _buildHome();
+        return _buildStudentHome(perfil);
     }
   }
 
-  Widget _buildHome() {
-    return HomeView(
+  Widget _buildStudentHome(UserProfile perfil) {
+    return StudentHomeView(
+      perfil: perfil,
+      cuentoRepository: _cuentoRepository,
       onDibujar: () {
         setState(() {
           _dibujoDesdePdf = false;
-
           _pantalla = AppScreen.drawing;
         });
       },
-
       onUsarPdf: () {
         setState(() {
           _dibujoDesdePdf = false;
-
           _pantalla = AppScreen.document;
         });
+      },
+      onAbrirCuento: (cuento) {
+        setState(() {
+          _cuento = cuento;
+          _pantalla = AppScreen.story;
+        });
+      },
+      onLogout: () async {
+        await _authService.logout();
+        _irInicio();
       },
     );
   }

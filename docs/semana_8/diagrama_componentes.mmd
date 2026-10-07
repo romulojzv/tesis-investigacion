@@ -1,0 +1,92 @@
+classDiagram
+    direction TB
+
+    %% =========================================================================
+    %% DIAGRAMA DE COMPONENTES — CUENTOS MÁGICOS (ARQUITECTURA REAL)
+    %% =========================================================================
+
+    class FlutterApp {
+        <<Capa Presentación / Desktop>>
+        +AuthGate
+        +LoginView
+        +StudentHomeView
+        +TeacherHomeView
+        +DrawView
+        +DocumentView
+        +StoryView
+    }
+
+    class Controllers {
+        <<Capa Controladores / Lógica>>
+        +StoryController
+        +VisualDescriptionHelper
+    }
+
+    class Repositories {
+        <<Capa Acceso a Datos>>
+        +CuentoRepository (Interface)
+        +CuentoRepositorySupabase
+        +CuentoRepositoryMemoria (Testing)
+    }
+
+    class Services {
+        <<Capa Servicios de Cliente>>
+        +AuthService
+        +NarrativaService
+        +DocumentService (Syncfusion PDF)
+        +NarracionService (flutter_tts)
+        +ImageService (Interface)
+        +SupabaseImageService
+        +SupabaseAiService
+    }
+
+    class SupabaseAuth {
+        <<Backend BaaS>>
+        +GoTrue Auth Engine
+        +Sesión JWT Persistente
+        +Role-based Metadata (docente / estudiante)
+    }
+
+    class SupabaseDB {
+        <<Backend BaaS - PostgreSQL>>
+        +profiles (RLS)
+        +aulas (RLS)
+        +aula_estudiantes (RLS)
+        +cuentos (RLS Aislamiento Alumno)
+        +escenas (RLS)
+        +decisiones (RLS)
+    }
+
+    class EdgeFunctions {
+        <<Backend BaaS - Deno Runtime>>
+        +crear-estudiante (Requiere JWT Docente)
+        +analizar-historia (verify_jwt=false en prototipo)
+        +generar-escena (verify_jwt=false en prototipo)
+        +generar-imagen (verify_jwt=false en prototipo)
+    }
+
+    class ExternalAI {
+        <<Servicios Externos de IA>>
+        +Google Gemini API (gemini-2.5-flash)
+        +Pollinations AI (Generación de Ilustraciones)
+    }
+
+    class ModulosPendientes {
+        <<Módulo No Implementado>>
+        +Quiz / Evaluación Comprensión Lectora [PENDIENTE]
+    }
+
+    %% Relaciones de llamada e integración
+    FlutterApp --> Controllers : Acciones de usuario y navegación
+    FlutterApp --> Services : Autenticación y Síntesis de voz
+    Controllers --> Repositories : Persistencia y consultas
+    Controllers --> Services : Orquestación de IA e Imágenes
+
+    Repositories --> SupabaseDB : Consultas SQL seguras con RLS
+    Services --> SupabaseAuth : Login y renovación de tokens
+    Services --> EdgeFunctions : Invocaciones HTTP/RPC
+
+    EdgeFunctions --> SupabaseDB : Lectura/Escritura administrativa (service_role)
+    EdgeFunctions --> ExternalAI : Generación multimodal de texto e imágenes
+
+    Controllers ..> ModulosPendientes : Planificado para fase evaluativa final

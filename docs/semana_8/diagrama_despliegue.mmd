@@ -1,0 +1,67 @@
+flowchart TB
+    %% =========================================================================
+    %% DIAGRAMA DE DESPLIEGUE — CUENTOS MÁGICOS
+    %% =========================================================================
+
+    subgraph CLIENT_NODE["💻 Dispositivo Cliente (PC Windows 10/11 x64)"]
+        subgraph OS_RUNTIME["Entorno de Ejecución Nativo"]
+            EXE["📦 tesis_investigacion.exe<br/>(Flutter Engine + Dart Runtime AOT)"]
+            PLUGINS["🔌 Plugins C++ / Win32<br/>(file_picker, flutter_tts SAPI)"]
+            SESSION_CACHE["💾 Cache Local de Sesión<br/>(Persistencia Supabase Auth)"]
+            EXE --- PLUGINS
+            EXE --- SESSION_CACHE
+        end
+    end
+
+    subgraph SUPABASE_CLOUD["☁️ Supabase Cloud (Infraestructura Gestionada)"]
+        subgraph AUTH_SERVICE["🔐 Servicio de Autenticación"]
+            GOTRUE["GoTrue Engine<br/>(JWT, Refresh Tokens, RBAC)"]
+        end
+
+        subgraph EDGE_RUNTIME["⚡ Edge Functions (Deno Runtime)"]
+            EF_STUDENT["crear-estudiante<br/>🔒 verify_jwt = true (Docente requerido)"]
+            EF_ANALYZE["analizar-historia<br/>⚠️ verify_jwt = false (Pendiente Prototipo)"]
+            EF_SCENE["generar-escena<br/>⚠️ verify_jwt = false (Pendiente Prototipo)"]
+            EF_IMAGE["generar-imagen<br/>⚠️ verify_jwt = false (Pendiente Prototipo)"]
+        end
+
+        subgraph DATABASE["🗄️ Base de Datos PostgreSQL"]
+            POSTGRES["PostgreSQL + PostgREST Engine"]
+            RLS_POLICIES["🛡️ Row Level Security (RLS)<br/>• profiles<br/>• aulas & aula_estudiantes<br/>• cuentos, escenas & decisiones"]
+            POSTGRES --- RLS_POLICIES
+        end
+
+        subgraph STORAGE_NOTE["📦 Manejo de Imágenes"]
+            DATA_URI["🖼️ Payload Data URI (Base64)<br/>(Imágenes embebidas en memoria/DB;<br/>Supabase Storage NO es definitivo en prototipo)"]
+        end
+    end
+
+    subgraph EXTERNAL_SERVICES["🌐 Servicios Externos de Inteligencia Artificial"]
+        GEMINI["🤖 Google Gemini API<br/>(gemini-2.5-flash / NLP Multimodal)"]
+        POLLINATIONS["🎨 Pollinations AI API<br/>(Generación visual Flux / Stable Diffusion)"]
+    end
+
+    %% Conexiones de red
+    EXE == "HTTPS / WSS (Auth & Consultas RLS)" ==> GOTRUE
+    EXE == "HTTPS REST (PostgREST)" ==> POSTGRES
+    EXE == "HTTPS POST (Llamadas RPC Edge)" ==> EDGE_RUNTIME
+
+    EF_STUDENT -. "Admin Service Role" .-> GOTRUE
+    EF_STUDENT -. "INSERT Matrícula" .-> POSTGRES
+
+    EF_ANALYZE == "HTTPS REST (API Key)" ==> GEMINI
+    EF_SCENE == "HTTPS REST (API Key)" ==> GEMINI
+    EF_IMAGE == "HTTPS Multipart/JSON" ==> POLLINATIONS
+
+    EF_IMAGE -. "Retorna Data URI / Path" .-> DATA_URI
+    DATA_URI -. "Renderizado directo" .-> EXE
+
+    classDef client fill:#E3F2FD,stroke:#1565C0,stroke-width:2px;
+    classDef cloud fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px;
+    classDef warning fill:#FFF3E0,stroke:#E65100,stroke-width:2px;
+    classDef external fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px;
+
+    class CLIENT_NODE,OS_RUNTIME,EXE client;
+    class SUPABASE_CLOUD,AUTH_SERVICE,DATABASE,POSTGRES cloud;
+    class EF_ANALYZE,EF_SCENE,EF_IMAGE,STORAGE_NOTE,DATA_URI warning;
+    class EXTERNAL_SERVICES,GEMINI,POLLINATIONS external;

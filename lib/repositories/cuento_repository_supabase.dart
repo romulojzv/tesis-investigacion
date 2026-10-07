@@ -40,6 +40,52 @@ class CuentoRepositorySupabase implements CuentoRepository {
       'descripcion_personaje="${cuento.descripcionPersonaje ?? '(null)'}"',
     );
 
+    String? estudianteId = cuento.estudianteId;
+    String? aulaId = cuento.aulaId;
+    bool esDemo = cuento.esDemo;
+
+    final currentUser = client.auth.currentUser;
+    if (currentUser != null) {
+      // 1. Validar rol del usuario actual en profiles
+      final profileData = await client
+          .from('profiles')
+          .select('rol')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+      final rol = profileData?['rol']?.toString().toLowerCase();
+
+      if (rol == 'docente') {
+        throw StateError(
+          'Los docentes no tienen permiso para crear o guardar cuentos.',
+        );
+      }
+
+      if (rol == 'estudiante') {
+        estudianteId ??= currentUser.id;
+
+        // Si aulaId aún no está asignado, consultar las matrículas del estudiante
+        if (aulaId == null) {
+          final matriculas = await client
+              .from('aula_estudiantes')
+              .select('aula_id')
+              .eq('estudiante_id', currentUser.id);
+
+          if (matriculas.length == 1) {
+            aulaId = matriculas.first['aula_id']?.toString();
+          } else {
+            // Si tiene 0 o más de un aula, queda null por diseño del piloto
+            aulaId = null;
+          }
+        }
+      }
+    } else {
+      // Sin sesión activa (modo demo / compatibilidad histórica)
+      if (estudianteId == null) {
+        esDemo = true;
+      }
+    }
+
     await client.from('cuentos').upsert({
       'id': _textoSeguro(cuento.id),
       'titulo': _textoSeguro(cuento.titulo),
@@ -59,6 +105,10 @@ class CuentoRepositorySupabase implements CuentoRepository {
       'descripcion_personaje': _textoSeguroOpcional(
         cuento.descripcionPersonaje,
       ),
+
+      'estudiante_id': estudianteId,
+      'aula_id': aulaId,
+      'es_demo': esDemo,
     }, onConflict: 'id');
 
     if (cuento.escenas.isNotEmpty) {
@@ -107,7 +157,10 @@ class CuentoRepositorySupabase implements CuentoRepository {
           'escenario_original, '
           'conflicto_principal, '
           'final_original, '
-          'descripcion_personaje',
+          'descripcion_personaje, '
+          'estudiante_id, '
+          'aula_id, '
+          'es_demo',
         )
         .eq('id', id)
         .maybeSingle();
@@ -184,8 +237,59 @@ class CuentoRepositorySupabase implements CuentoRepository {
 
       descripcionPersonaje: cuentoData['descripcion_personaje']?.toString(),
 
+      estudianteId: cuentoData['estudiante_id']?.toString(),
+      aulaId: cuentoData['aula_id']?.toString(),
+      esDemo: cuentoData['es_demo'] as bool? ?? false,
+
       escenas: escenas,
       decisiones: decisiones,
     );
+  }
+
+  @override
+  Future<List<Cuento>> listarCuentosPorEstudiante(String estudianteId) async {
+    final cuentosData = await client
+        .from('cuentos')
+        .select(
+          'id, '
+          'titulo, '
+          'personaje_principal, '
+          'origen, '
+          'texto_fuente, '
+          'resumen_original, '
+          'escenario_original, '
+          'conflicto_principal, '
+          'final_original, '
+          'descripcion_personaje, '
+          'estudiante_id, '
+          'aula_id, '
+          'es_demo',
+        )
+        .eq('estudiante_id', estudianteId)
+        .eq('es_demo', false)
+        .order('created_at', ascending: false);
+
+    return cuentosData.map<Cuento>((data) {
+      final origenTexto = data['origen']?.toString().trim().toLowerCase();
+      final origen = origenTexto == 'pdf'
+          ? CuentoOrigen.pdf
+          : CuentoOrigen.dibujo;
+
+      return Cuento(
+        id: data['id'].toString(),
+        titulo: data['titulo'].toString(),
+        personajePrincipal: data['personaje_principal'].toString(),
+        origen: origen,
+        textoFuente: data['texto_fuente']?.toString(),
+        resumenOriginal: data['resumen_original']?.toString(),
+        escenarioOriginal: data['escenario_original']?.toString(),
+        conflictoPrincipal: data['conflicto_principal']?.toString(),
+        finalOriginal: data['final_original']?.toString(),
+        descripcionPersonaje: data['descripcion_personaje']?.toString(),
+        estudianteId: data['estudiante_id']?.toString(),
+        aulaId: data['aula_id']?.toString(),
+        esDemo: data['es_demo'] as bool? ?? false,
+      );
+    }).toList();
   }
 }

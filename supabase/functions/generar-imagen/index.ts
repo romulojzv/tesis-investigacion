@@ -38,6 +38,7 @@ interface SolicitudGeneracionImagen {
   contenidoEscena: string;
   escenario?: string;
   referenciaVisualBase64?: string;
+  referenciaAnchorBase64?: string;
   referenciaVisualUrl?: string;
   modelo?: string;
   seed?: number;
@@ -132,13 +133,14 @@ function construirPromptVisual(params: {
   const desc = params.descripcionPersonaje?.trim();
   if (desc && desc.length > 0) {
     partes.push(
-      `Protagonist: ${params.personajePrincipal}. PERMANENT BASE CHARACTER TRAITS: ${desc}. ` +
-      `Maintain exact protagonist appearance, outfit colors, hair and accessories consistently throughout all scenes. ` +
-      `Temporary modifications apply only if required by scene action and do not redefine base appearance`,
+      `Protagonist: ${params.personajePrincipal}. CANONICAL BASE TRAITS: ${desc}. ` +
+      `STRICT CHARACTER CONTINUITY: Keep the exact same protagonist across all scenes with the same base species, body silhouette, facial features, and core color palette. ` +
+      `Do not transform or convert the protagonist into a different creature or character. ` +
+      `Only alter pose, action, and setting environment according to the scene narrative`,
     );
   } else {
     partes.push(
-      `Protagonist: ${params.personajePrincipal}. Consistent character appearance throughout the story`,
+      `Protagonist: ${params.personajePrincipal}. Strict character continuity across all scenes: same species, same form, same key traits`,
     );
   }
 
@@ -155,9 +157,11 @@ function construirPromptVisual(params: {
   // 5. Guía de consistencia estricta si hay referencia previa (Escenas 2-4 o dibujo/PDF)
   if (params.tieneReferenciaVisual) {
     partes.push(
-      'STRICT CHARACTER IDENTITY: The child/character in the input reference image is the exact same protagonist. ' +
-      'Maintain: face structure, skin tone, hairstyle, hair color, body proportions, base outfit, and permanent backpack/accessories from the reference image. ' +
-      'Change only: pose, facial expression, action, and setting/environment. Do not redesign the protagonist',
+      'VISUAL REFERENCE & IDENTITY ANCHOR: The input reference image establishes the canonical protagonist. ' +
+      'Maintain exact same species, character silhouette, base colors, facial structure, and iconic features. ' +
+      'Do NOT redesign or morph the protagonist into a different character. ' +
+      'Children storybook illustration style, prioritize whimsical child-friendly continuity, not realism. ' +
+      'Only adapt pose, action and setting to match this specific scene',
     );
   }
 
@@ -261,7 +265,9 @@ async function solicitarEdicionConReferenciaPollinations(params: {
   prompt: string;
   modelo: string;
   referenciaBytes: Uint8Array;
+  anchorBytes?: Uint8Array | null;
   mimeType: string;
+  mimeAnchor?: { mime: string; ext: string };
   ext: string;
   apiKey: string;
   seed: number;
@@ -269,8 +275,19 @@ async function solicitarEdicionConReferenciaPollinations(params: {
   const url = `${POLLINATIONS_BASE_URL}/v1/images/edits`;
 
   const formData = new FormData();
-  const fileBlob = new Blob([params.referenciaBytes], { type: params.mimeType });
-  formData.append('image', fileBlob, `referencia_protagonista.${params.ext}`);
+  // Si hay anchor previo de escena anterior, se usa como imagen base prioritaria
+  const refPrincipal = params.anchorBytes || params.referenciaBytes;
+  const mimePrincipal = params.anchorBytes ? params.mimeAnchor!.mime : params.mimeType;
+  const extPrincipal = params.anchorBytes ? params.mimeAnchor!.ext : params.ext;
+
+  const fileBlob = new Blob([refPrincipal], { type: mimePrincipal });
+  formData.append('image', fileBlob, `referencia_protagonista.${extPrincipal}`);
+
+  if (params.anchorBytes && params.referenciaBytes) {
+    const fileBlobOrig = new Blob([params.referenciaBytes], { type: params.mimeType });
+    formData.append('image_original', fileBlobOrig, `referencia_original.${params.ext}`);
+  }
+
   formData.append('prompt', params.prompt);
   formData.append('model', params.modelo);
   formData.append('size', '1024x768');
@@ -398,6 +415,7 @@ Deno.serve(async (req) => {
       contenidoEscena,
       escenario,
       referenciaVisualBase64,
+      referenciaAnchorBase64,
       modelo,
     } = body;
 
@@ -413,7 +431,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Decodificar y validar bytes de referencia visual si fueron proporcionados
+    // Decodificar y validar bytes de referencia visual original
     let referenciaBytes: Uint8Array | null = null;
     let mimeReferencia = { mime: 'image/png', ext: 'png' };
 
@@ -433,7 +451,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const tieneReferenciaVisual = referenciaBytes !== null;
+    // Decodificar y validar anchor de escena previa si fue proporcionado
+    let anchorBytes: Uint8Array | null = null;
+    let mimeAnchor = { mime: 'image/webp', ext: 'webp' };
+
+    if (referenciaAnchorBase64 && referenciaAnchorBase64.trim().length > 50) {
+      try {
+        const bytes = base64ToUint8Array(referenciaAnchorBase64);
+        if (bytes.byteLength >= 100 && bytes.byteLength <= TAMANO_MAX_REFERENCIA_BYTES) {
+          anchorBytes = bytes;
+          mimeAnchor = detectarMimeType(bytes);
+        }
+      } catch (decErr) {
+        console.warn('[generar-imagen] Error decodificando referenciaAnchorBase64:', decErr);
+      }
+    }
+
+    const tieneReferenciaVisual = referenciaBytes !== null || anchorBytes !== null;
 
     // SELECCIÓN DE MODELO Y ENDPOINT SEGÚN FLUJO:
     // - Flujo A (Sin referencia): flux.1-schnell vía GET /image/{prompt}
@@ -462,6 +496,7 @@ Deno.serve(async (req) => {
       numeroEscena,
       modelo: modeloFinal,
       tieneReferenciaVisual,
+      tieneAnchor: anchorBytes !== null,
       endpoint: endpointElegido,
     });
 
@@ -472,8 +507,10 @@ Deno.serve(async (req) => {
       resultadoImagen = await solicitarEdicionConReferenciaPollinations({
         prompt: promptVisual,
         modelo: modeloFinal,
-        referenciaBytes: referenciaBytes!,
+        referenciaBytes: (referenciaBytes || anchorBytes)!,
+        anchorBytes,
         mimeType: mimeReferencia.mime,
+        mimeAnchor,
         ext: mimeReferencia.ext,
         apiKey: pollinationsApiKey,
         seed,

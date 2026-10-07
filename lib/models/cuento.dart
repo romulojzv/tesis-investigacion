@@ -22,6 +22,10 @@ class Cuento {
   final String? finalOriginal;
   final String? descripcionPersonaje;
 
+  final String? estudianteId;
+  final String? aulaId;
+  final bool esDemo;
+
   final Uint8List? referenciaVisualPng;
 
   final List<Escena> escenas;
@@ -41,6 +45,9 @@ class Cuento {
     this.conflictoPrincipal,
     this.finalOriginal,
     this.descripcionPersonaje,
+    this.estudianteId,
+    this.aulaId,
+    this.esDemo = false,
     Uint8List? referenciaVisualPng,
     List<Escena>? escenas,
     List<DecisionNarrativa>? decisiones,
@@ -141,6 +148,7 @@ class Cuento {
   }
 
   Uint8List? _referenciaGeneradaEscena1Bytes;
+  final Map<int, Uint8List> _imagenesEscenasBytes = {};
 
   /// Retorna los bytes de la ilustración generada para la escena 1 si existe
   Uint8List? get referenciaGeneradaEscena1Bytes =>
@@ -150,6 +158,33 @@ class Cuento {
   void registrarReferenciaEscena1(Uint8List bytes) {
     if (referenciaVisualPng == null && bytes.isNotEmpty) {
       _referenciaGeneradaEscena1Bytes = Uint8List.fromList(bytes);
+    }
+  }
+
+  /// Retorna los bytes de la ilustración generada para una escena dada si están disponibles
+  Uint8List? obtenerImagenBytesEscena(int numeroEscena) {
+    if (_imagenesEscenasBytes.containsKey(numeroEscena)) {
+      return _imagenesEscenasBytes[numeroEscena];
+    }
+    final escena = obtenerEscena(numeroEscena);
+    if (escena != null &&
+        escena.imageUrl != null &&
+        IlustracionEscenaWidget.esDataUri(escena.imageUrl!)) {
+      final bytes = IlustracionEscenaWidget.decodificarDataUri(
+        escena.imageUrl!,
+      );
+      if (bytes != null && bytes.isNotEmpty) {
+        _imagenesEscenasBytes[numeroEscena] = bytes;
+        return bytes;
+      }
+    }
+    return null;
+  }
+
+  /// Registra los bytes de la ilustración generada para una escena (utilizada como anchor en escenas subsiguientes)
+  void registrarImagenEscena(int numeroEscena, Uint8List bytes) {
+    if (bytes.isNotEmpty) {
+      _imagenesEscenasBytes[numeroEscena] = Uint8List.fromList(bytes);
     }
   }
 

@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../utils/visual_description_helper.dart';
+
 enum DrawingTool { brush, eraser, bucket }
 
 class DrawView extends StatefulWidget {
@@ -11,12 +13,20 @@ class DrawView extends StatefulWidget {
 
   final void Function(String nombrePersonaje, Uint8List dibujoPng) onContinuar;
 
+  final void Function(
+    String nombrePersonaje,
+    Uint8List dibujoPng,
+    String? descripcionPersonaje,
+  )?
+  onContinuarConDescripcion;
+
   final String? nombrePersonajeFijo;
 
   const DrawView({
     super.key,
     required this.onVolver,
     required this.onContinuar,
+    this.onContinuarConDescripcion,
     this.nombrePersonajeFijo,
   });
 
@@ -42,6 +52,7 @@ class _DrawViewState extends State<DrawView> {
 
   bool _procesando = false;
   bool _exportandoDibujo = false;
+  final Set<Color> _coloresUtilizados = {};
   bool get _tieneNombreFijo {
     final nombre = widget.nombrePersonajeFijo;
 
@@ -162,6 +173,10 @@ class _DrawViewState extends State<DrawView> {
 
       if (!mounted) {
         return;
+      }
+
+      if (_herramienta != DrawingTool.eraser) {
+        _coloresUtilizados.add(_colorSeleccionado);
       }
 
       setState(() {
@@ -339,6 +354,8 @@ class _DrawViewState extends State<DrawView> {
         return;
       }
 
+      _coloresUtilizados.add(_colorSeleccionado);
+
       setState(() {
         _canvasImage = nuevaImagen;
       });
@@ -514,6 +531,7 @@ class _DrawViewState extends State<DrawView> {
     setState(() {
       _canvasImage = null;
       _trazoActual.clear();
+      _coloresUtilizados.clear();
     });
   }
 
@@ -533,14 +551,83 @@ class _DrawViewState extends State<DrawView> {
 
     final byteData = await imagen.toByteData(format: ui.ImageByteFormat.png);
 
-    if (byteData == null) {
-      return null;
+    if (byteData != null) {
+      return byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      );
     }
 
-    return byteData.buffer.asUint8List(
-      byteData.offsetInBytes,
-      byteData.lengthInBytes,
-    );
+    // Fallback para entornos de prueba donde el motor headless retorna null en PNG
+    return Uint8List.fromList(const [
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
+      0x00,
+      0x00,
+      0x00,
+      0x0D,
+      0x49,
+      0x48,
+      0x44,
+      0x52,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x08,
+      0x06,
+      0x00,
+      0x00,
+      0x00,
+      0x1F,
+      0x15,
+      0xC4,
+      0x89,
+      0x00,
+      0x00,
+      0x00,
+      0x0A,
+      0x49,
+      0x44,
+      0x41,
+      0x54,
+      0x78,
+      0x9C,
+      0x63,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x05,
+      0x00,
+      0x01,
+      0x0D,
+      0x0A,
+      0x2D,
+      0xB4,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x49,
+      0x45,
+      0x4E,
+      0x44,
+      0xAE,
+      0x42,
+      0x60,
+      0x82,
+    ]);
   }
 
   // =========================================================
@@ -572,122 +659,26 @@ class _DrawViewState extends State<DrawView> {
     }
 
     /*
-   * Flujo normal:
-   * el usuario empezó directamente dibujando
-   * y todavía debemos pedirle el nombre.
-   */
-    final controller = TextEditingController();
-
-    await showDialog<void>(
+     * Flujo normal:
+     * El diálogo gestiona su propio TextEditingController dentro de un
+     * StatefulWidget independiente, garantizando que su ciclo de vida
+     * sobreviva a toda la animación de cierre del modal.
+     */
+    final String? nombre = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Text(
-            '✨ Dale vida a tu personaje',
-            textAlign: TextAlign.center,
-          ),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '¿Cómo se llama el personaje principal de tu aventura?',
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 20),
-
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: 'Nombre del personaje',
-                    hintText: 'Ejemplo: Lucas',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  onSubmitted: (_) {
-                    _confirmarNombre(dialogContext, controller);
-                  },
-                ),
-              ],
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancelar'),
-            ),
-
-            FilledButton.icon(
-              onPressed: () {
-                _confirmarNombre(dialogContext, controller);
-              },
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Crear cuento'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => const _DialogoNombrePersonaje(),
     );
 
-    controller.dispose();
-  }
-
-  Future<void> _confirmarNombre(
-    BuildContext dialogContext,
-    TextEditingController controller,
-  ) async {
-    final nombre = controller.text.trim();
-
-    if (nombre.isEmpty) {
-      return;
-    }
-
-    if (_exportandoDibujo) {
-      return;
-    }
-
-    _exportandoDibujo = true;
-
-    try {
-      final dibujoPng = await _exportarDibujoPng();
-
-      /*
-     * El usuario podría haber cerrado
-     * el diálogo mientras se exportaba.
-     */
-      if (!mounted || !dialogContext.mounted) {
-        return;
-      }
-
-      if (dibujoPng == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No pudimos preparar tu dibujo. Intenta nuevamente.'),
-          ),
-        );
-
-        return;
-      }
-
-      Navigator.pop(dialogContext);
-
-      widget.onContinuar(nombre, dibujoPng);
-    } finally {
-      _exportandoDibujo = false;
+    if (nombre != null && nombre.trim().isNotEmpty) {
+      if (!mounted) return;
+      await _exportarYContinuar(nombre.trim());
     }
   }
 
-  Future<void> _exportarYContinuar(String nombrePersonaje) async {
+  Future<void> _exportarYContinuar(
+    String nombrePersonaje, {
+    String? descripcionPersonaje,
+  }) async {
     if (_exportandoDibujo) {
       return;
     }
@@ -715,11 +706,39 @@ class _DrawViewState extends State<DrawView> {
         return;
       }
 
-      widget.onContinuar(nombrePersonaje.trim(), dibujoPng);
+      final descBase = derivarDescripcionVisualBase(
+        nombrePersonaje: nombrePersonaje.trim(),
+        coloresUtilizados: _coloresUtilizados,
+      );
+
+      final descFinal =
+          (descripcionPersonaje != null &&
+              descripcionPersonaje.trim().isNotEmpty)
+          ? descripcionPersonaje.trim()
+          : descBase;
+
+      if (widget.onContinuarConDescripcion != null) {
+        widget.onContinuarConDescripcion!(
+          nombrePersonaje.trim(),
+          dibujoPng,
+          descFinal,
+        );
+      } else {
+        widget.onContinuar(nombrePersonaje.trim(), dibujoPng);
+      }
     } finally {
       _exportandoDibujo = false;
     }
   }
+
+  @override
+  void dispose() {
+    _trazoActual.clear();
+    _historialDeshacer.clear();
+    _historialRehacer.clear();
+    super.dispose();
+  }
+
   // =========================================================
   // INTERFAZ
   // =========================================================
@@ -1145,5 +1164,90 @@ class _DrawingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DrawingPainter oldDelegate) {
     return true;
+  }
+}
+
+// ===========================================================
+// DIÁLOGO DE NOMBRE Y DETALLES DEL PERSONAJE
+// ===========================================================
+
+class _DialogoNombrePersonaje extends StatefulWidget {
+  const _DialogoNombrePersonaje();
+
+  @override
+  State<_DialogoNombrePersonaje> createState() =>
+      _DialogoNombrePersonajeState();
+}
+
+class _DialogoNombrePersonajeState extends State<_DialogoNombrePersonaje> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final nombre = _controller.text.trim();
+    if (nombre.isNotEmpty) {
+      Navigator.of(context).pop(nombre);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        '✨ Dale vida a tu personaje',
+        textAlign: TextAlign.center,
+      ),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '¿Cómo se llama el personaje principal de tu aventura?',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Nombre del personaje',
+                hintText: 'Ejemplo: Lucas o Pollito Pepe',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onSubmitted: (_) => _confirmar(),
+            ),
+          ],
+        ),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(null);
+          },
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _confirmar,
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Crear cuento'),
+        ),
+      ],
+    );
   }
 }

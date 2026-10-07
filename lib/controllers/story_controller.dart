@@ -13,6 +13,7 @@ import '../services/document_service.dart';
 import '../models/narrativa_config.dart';
 import '../services/image_service.dart';
 import '../services/narrativa_service.dart';
+import '../utils/visual_description_helper.dart';
 import '../widgets/ilustracion_escena_widget.dart';
 
 class StoryController {
@@ -28,6 +29,12 @@ class StoryController {
   // Evita dos generaciones simultáneas
   // desde la misma escena.
   final Set<String> _generacionesEnCurso = {};
+
+  // Bandera de guardia para evitar doble despacho concurrente
+  bool _generandoSiguienteEscena = false;
+
+  /// Indica si actualmente se está generando la siguiente escena
+  bool get generandoSiguienteEscena => _generandoSiguienteEscena;
 
   // Evita doble solicitud o generaciones concurrentes de imágenes para la misma escena
   final Set<String> _generacionesImagenEnCurso = {};
@@ -50,6 +57,7 @@ class StoryController {
     required String id,
     required String nombrePersonaje,
     required Uint8List dibujoReferenciaPng,
+    String? descripcionPersonaje,
   }) async {
     final nombre = nombrePersonaje.trim();
 
@@ -61,12 +69,18 @@ class StoryController {
       throw ArgumentError('El dibujo de referencia no puede estar vacío.');
     }
 
+    final descFinal =
+        (descripcionPersonaje != null && descripcionPersonaje.trim().isNotEmpty)
+        ? descripcionPersonaje.trim()
+        : derivarDescripcionVisualBase(nombrePersonaje: nombre);
+
     final cuento = Cuento(
       id: id,
       titulo: 'La aventura de $nombre',
       personajePrincipal: nombre,
       origen: CuentoOrigen.dibujo,
       referenciaVisualPng: dibujoReferenciaPng,
+      descripcionPersonaje: descFinal,
     );
 
     final escenaInicial = narrativaService.crearEscenaInicialDemo(
@@ -377,9 +391,12 @@ class StoryController {
 
     final claveGeneracion = '${cuento.id}:${escenaActual.numero}';
 
-    if (!_generacionesEnCurso.add(claveGeneracion)) {
+    if (_generandoSiguienteEscena ||
+        !_generacionesEnCurso.add(claveGeneracion)) {
       throw StateError('Ya se está generando esta escena.');
     }
+
+    _generandoSiguienteEscena = true;
 
     try {
       // -----------------------------------------------
@@ -483,11 +500,28 @@ class StoryController {
                 .toList()
           : resultado.opciones;
 
+      final esFinalForzado = esUltimaEscena;
+
+      final List<String> opcionesDefinitivas;
+      if (esFinalForzado) {
+        opcionesDefinitivas = [];
+      } else {
+        if (opcionesSanitizadas.isNotEmpty) {
+          opcionesDefinitivas = opcionesSanitizadas;
+        } else {
+          opcionesDefinitivas = [
+            'Seguir explorando el camino',
+            'Buscar una solución diferente con ingenio',
+            'Pedir ayuda a un amigo cercano',
+          ];
+        }
+      }
+
       final nuevaEscena = Escena(
         numero: numeroNuevaEscena,
         contenido: contenidoSanitizado,
-        opciones: opcionesSanitizadas,
-        esFinal: resultado.esFinal,
+        opciones: opcionesDefinitivas,
+        esFinal: esFinalForzado,
       );
 
       // -----------------------------------------------
@@ -522,6 +556,7 @@ class StoryController {
       return nuevaEscena;
     } finally {
       _generacionesEnCurso.remove(claveGeneracion);
+      _generandoSiguienteEscena = false;
     }
   }
 
@@ -657,9 +692,28 @@ class StoryController {
     }
 
     try {
-      final referenciaBytes = cuento.obtenerReferenciaVisualParaEscena(
-        numeroEscena,
-      );
+      Uint8List? referenciaBytes;
+      Uint8List? referenciaAnteriorBytes;
+
+      if (cuento.origen == CuentoOrigen.dibujo) {
+        // En escena 1: usar el dibujo del estudiante como referencia principal.
+        referenciaBytes = cuento.referenciaVisualPng;
+        // En escenas 2, 3, 4: usar dibujo original + anchor de la escena anterior
+        if (numeroEscena > 1) {
+          referenciaAnteriorBytes = cuento.obtenerImagenBytesEscena(
+            numeroEscena - 1,
+          );
+        }
+      } else {
+        referenciaBytes = cuento.obtenerReferenciaVisualParaEscena(
+          numeroEscena,
+        );
+        if (numeroEscena > 1) {
+          referenciaAnteriorBytes = cuento.obtenerImagenBytesEscena(
+            numeroEscena - 1,
+          );
+        }
+      }
 
       final solicitud = SolicitudImagenEscena(
         cuentoId: cuento.id,
@@ -669,6 +723,7 @@ class StoryController {
         descripcionPersonaje: cuento.descripcionPersonaje,
         escenario: cuento.escenarioOriginal,
         referenciaVisualBytes: referenciaBytes,
+        referenciaAnteriorBytes: referenciaAnteriorBytes,
       );
 
       final url = await imageService!
@@ -679,16 +734,15 @@ class StoryController {
         final urlFinal = url.trim();
         cuento.asociarImagenAEscena(numeroEscena, urlFinal);
 
-        // Si es la escena 1 y no había referencia externa (modo automático),
-        // guardar los bytes de la escena 1 para que las escenas 2, 3 y 4 usen
-        // exactamente este perfil visual base estable.
-        if (numeroEscena == 1 && cuento.referenciaVisualPng == null) {
-          if (IlustracionEscenaWidget.esDataUri(urlFinal)) {
-            final bytesEscena1 = IlustracionEscenaWidget.decodificarDataUri(
-              urlFinal,
-            );
-            if (bytesEscena1 != null && bytesEscena1.isNotEmpty) {
-              cuento.registrarReferenciaEscena1(bytesEscena1);
+        // Guardar bytes generados para consistencia de anchors futuros
+        if (IlustracionEscenaWidget.esDataUri(urlFinal)) {
+          final bytesEscena = IlustracionEscenaWidget.decodificarDataUri(
+            urlFinal,
+          );
+          if (bytesEscena != null && bytesEscena.isNotEmpty) {
+            cuento.registrarImagenEscena(numeroEscena, bytesEscena);
+            if (numeroEscena == 1 && cuento.referenciaVisualPng == null) {
+              cuento.registrarReferenciaEscena1(bytesEscena);
             }
           }
         }

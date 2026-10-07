@@ -47,6 +47,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.cuentos TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.escenas TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.decisiones_narrativas TO authenticated;
 
+GRANT ALL ON TABLE public.cuentos TO service_role;
+GRANT ALL ON TABLE public.escenas TO service_role;
+GRANT ALL ON TABLE public.decisiones_narrativas TO service_role;
+
 -- 4. ACTIVACIÓN OBLIGATORIA DE RLS
 ALTER TABLE public.cuentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.escenas ENABLE ROW LEVEL SECURITY;
@@ -104,7 +108,14 @@ FOR SELECT USING (
 );
 
 CREATE POLICY "escenas_modify_policy" ON public.escenas
-FOR ALL USING (
+FOR ALL 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.cuentos c 
+        WHERE c.id = public.escenas.cuento_id AND c.estudiante_id = auth.uid()
+    )
+)
+WITH CHECK (
     EXISTS (
         SELECT 1 FROM public.cuentos c 
         WHERE c.id = public.escenas.cuento_id AND c.estudiante_id = auth.uid()
@@ -125,7 +136,14 @@ FOR SELECT USING (
 );
 
 CREATE POLICY "decisiones_modify_policy" ON public.decisiones_narrativas
-FOR ALL USING (
+FOR ALL 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.cuentos c 
+        WHERE c.id = public.decisiones_narrativas.cuento_id AND c.estudiante_id = auth.uid()
+    )
+)
+WITH CHECK (
     EXISTS (
         SELECT 1 FROM public.cuentos c 
         WHERE c.id = public.decisiones_narrativas.cuento_id AND c.estudiante_id = auth.uid()

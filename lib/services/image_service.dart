@@ -12,6 +12,7 @@ class SolicitudImagenEscena {
   final String? descripcionPersonaje;
   final String? escenario;
   final Uint8List? referenciaVisualBytes;
+  final Uint8List? referenciaAnteriorBytes;
   final String estiloVisual;
 
   const SolicitudImagenEscena({
@@ -22,6 +23,7 @@ class SolicitudImagenEscena {
     this.descripcionPersonaje,
     this.escenario,
     this.referenciaVisualBytes,
+    this.referenciaAnteriorBytes,
     this.estiloVisual = 'Ilustración infantil cálida y colorida para libro de cuentos de primaria, estilo acuarela digital limpia, sin texto escrito dentro de la imagen',
   });
 
@@ -41,8 +43,12 @@ class SolicitudImagenEscena {
     }
     buffer.writeln('Acción narrativa de la escena: ${contenidoEscena.trim()}.');
     buffer.writeln(
-      'Reglas de composición: Mantener estrictamente la apariencia y rasgos base del protagonista en todas las ilustraciones. '
-      'Cualquier cambio de ropa o accesorio es puramente temporal por la acción de la escena y no altera sus rasgos base. '
+      'Reglas de consistencia: Mantener estrictamente al mismo protagonista en todas las ilustraciones: '
+      'misma especie o forma base, mismos rasgos principales, silueta y paleta de color característica. '
+      'Cualquier cambio de ropa o accesorio es puramente temporal para esta escena; los rasgos base permanecen. '
+      'Solo cambiar pose, expresión, acción y entorno según la escena lo requiera. '
+      'El personaje NO debe transformarse en una criatura distinta en cada escena. '
+      'NO buscar realismo; priorizar consistencia infantil, ternura y continuidad visual. '
       'NO incluir palabras, letras, títulos, globos de diálogo ni números dentro de la ilustración. '
       'Enfoque claro y accesible para niños de primaria.',
     );

@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
 
     const rawNombre = body.nombre?.toString().trim() ?? '';
     const rawAulaId = body.aulaId?.toString().trim() ?? '';
-    const rawCodigoLocal = body.codigoLocal?.toString().trim() ?? '';
+    const rawCodigoLocal = body.codigoLocal?.toString().trim().toUpperCase() ?? '';
 
     // Validación: nombre
     if (rawNombre.length < 2 || rawNombre.length > 80) {

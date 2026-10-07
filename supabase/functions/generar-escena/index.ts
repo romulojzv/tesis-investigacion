@@ -582,7 +582,10 @@ REESCRIBE OBLIGATORIAMENTE esta escena final como un DESENLACE DEFINITIVO Y CONC
       }
     }
 
-    const esFinal = parsedJson.esFinal === true;
+    // REGLA DURA DE LÍMITE DE ESCENAS:
+    // Si numeroEscena < 4 (o !esUltimaEscena), esFinal DEBE ser false.
+    // Solo si esUltimaEscena, esFinal es true.
+    const esFinal = esUltimaEscena ? true : false;
 
     // Verificación razonable de idioma español
     if (!esTextoEnEspanol(contenido)) {
@@ -611,20 +614,16 @@ REESCRIBE OBLIGATORIAMENTE esta escena final como un DESENLACE DEFINITIVO Y CONC
       // Exigir exactamente tres opciones no vacías y distintas
       const opcionesUnicas = [...new Set(opcionesLimpias)];
 
-      if (opcionesUnicas.length < 3) {
-        console.error(
-          `Opciones insuficientes o repetidas: ${JSON.stringify(opcionesLimpias)}`,
-        );
-        return new Response(
-          JSON.stringify({
-            error:
-              'La escena generada no contiene exactamente tres decisiones diferentes.',
-          }),
-          {
-            status: 502,
-            headers: jsonHeaders,
-          },
-        );
+      const opcionesSugeridas = [
+        'Continuar explorando el sendero con atención',
+        'Buscar una solución creativa e ingeniosa',
+        'Pedir ayuda a los amigos del lugar',
+      ];
+
+      for (const opSugerida of opcionesSugeridas) {
+        if (opcionesUnicas.length < 3 && !opcionesUnicas.includes(opSugerida)) {
+          opcionesUnicas.push(opSugerida);
+        }
       }
 
       opcionesFinales = opcionesUnicas.slice(0, 3);

@@ -1,4 +1,4 @@
-﻿# Flutter / Dart
+# Flutter / Dart
 .dart_tool/
 .packages
 build/
@@ -18,6 +18,7 @@ build/
 # Archivos temporales
 *.log
 *.tmp
+*.local.json
 
 # Windows
 Thumbs.db
