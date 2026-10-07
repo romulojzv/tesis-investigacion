@@ -30,3 +30,6 @@ supabase/.temp/
 
 # npm
 npm-debug.log*
+
+# Supabase local CLI state
+supabase/.branches/
