@@ -1,9 +1,11 @@
-import '@supabase/functions-js/edge-runtime.d.ts';
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { validarEstudianteAutenticado } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const jsonHeaders = {
@@ -43,8 +45,23 @@ async function llamarGemini(
 }
 
 Deno.serve(async (req) => {
+  // 1. Pre-vuelo CORS (sin requerir autenticación)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // 2. Restricción de método HTTP
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Método no permitido. Solo se acepta POST.' }),
+      { status: 405, headers: jsonHeaders },
+    );
+  }
+
+  // 3. SEGURIDAD: Validar que el usuario tenga sesión válida y rol 'estudiante'
+  const authResult = await validarEstudianteAutenticado(req, corsHeaders);
+  if (!authResult.ok) {
+    return authResult.response!;
   }
 
   try {

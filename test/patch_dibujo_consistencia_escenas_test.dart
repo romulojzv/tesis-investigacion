@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tesis_investigacion/controllers/story_controller.dart';
+import 'package:tesis_investigacion/models/character_customization.dart';
 import 'package:tesis_investigacion/models/generated_scene.dart';
 import 'package:tesis_investigacion/models/narrativa_config.dart';
+import 'package:tesis_investigacion/models/pdf_story_data.dart';
 import 'package:tesis_investigacion/models/story_analysis.dart';
 import 'package:tesis_investigacion/repositories/cuento_repository_memoria.dart';
 import 'package:tesis_investigacion/services/ai_service.dart';
@@ -421,6 +423,7 @@ void main() {
         equals(fakePngBytes),
       );
       expect(mockImage.solicitudes[0].referenciaAnteriorBytes, isNull);
+      expect(mockImage.solicitudes[0].esModoDibujo, isTrue);
       expect(
         mockImage.solicitudes[0].descripcionPersonaje,
         cuento.descripcionPersonaje,
@@ -447,6 +450,7 @@ void main() {
         equals(fakePngBytes),
       );
       expect(mockImage.solicitudes[1].referenciaAnteriorBytes, isNotNull);
+      expect(mockImage.solicitudes[1].esModoDibujo, isTrue);
       expect(
         mockImage.solicitudes[1].descripcionPersonaje,
         cuento.descripcionPersonaje,
@@ -473,7 +477,46 @@ void main() {
         equals(fakePngBytes),
       );
       expect(mockImage.solicitudes[2].referenciaAnteriorBytes, isNotNull);
+      expect(mockImage.solicitudes[2].esModoDibujo, isTrue);
     });
+
+    test(
+      'en cuento origen PDF, esModoDibujo se establece estrictamente en false',
+      () async {
+        final repo = CuentoRepositoryMemoria();
+        final mockAi = MockAiServiceTestable();
+        final mockImage = MockImageServiceTestable();
+
+        final controller = StoryController(
+          narrativaService: NarrativaService(),
+          cuentoRepository: repo,
+          documentService: DocumentService(),
+          aiService: mockAi,
+          imageService: mockImage,
+        );
+
+        final cuentoPdf = await controller.crearCuentoDesdePdfProcesadoDemo(
+          id: 'cuento-pdf-test',
+          datosPdf: PdfStoryData(
+            nombreArchivo: 'historia.pdf',
+            textoExtraido: 'Había una vez un conejo en el bosque.',
+          ),
+          personalizacion: CharacterCustomization(
+            mode: CharacterMode.keepOriginal,
+            visualMode: CharacterVisualMode.automatic,
+            nombrePersonaje: 'Conejo Sabio',
+          ),
+        );
+
+        final url = await controller.asegurarIlustracionEscena(
+          cuento: cuentoPdf,
+          numeroEscena: 1,
+        );
+        expect(url, isNotNull);
+        expect(mockImage.solicitudes.length, 1);
+        expect(mockImage.solicitudes.first.esModoDibujo, isFalse);
+      },
+    );
   });
 
   group('E. Normalización de código de acceso a MAYÚSCULAS', () {

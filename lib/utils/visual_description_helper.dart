@@ -42,8 +42,24 @@ String derivarDescripcionVisualBase({
 
   String rasgosBase;
 
-  // Detección de especie / tipo de personaje
-  if (nombreLower.contains('pollito') || nombreLower.contains('pollo')) {
+  // Detección de tipo o naturaleza visual del personaje (cuando el nombre contiene pistas explícitas)
+  // 1. Personas / Niños / Héroes
+  if (nombreLower.contains('niño') ||
+      nombreLower.contains('niña') ||
+      nombreLower.contains('princesa') ||
+      nombreLower.contains('principe') ||
+      nombreLower.contains('príncipe') ||
+      nombreLower.contains('superhéroe') ||
+      nombreLower.contains('superheroe') ||
+      nombreLower.contains('caballero') ||
+      nombreLower.contains('pirata') ||
+      nombreLower.contains('astronauta') ||
+      nombreLower.contains('mago') ||
+      nombreLower.contains('hada')) {
+    rasgosBase =
+        'personaje humanoide infantil llamado $nombreLimpio, proporciones amigables, expresión alegre y vestimenta sencilla';
+    // 2. Animales comunes
+  } else if (nombreLower.contains('pollito') || nombreLower.contains('pollo')) {
     rasgosBase = 'personaje tipo pollito, cuerpo amarillo, cabeza roja/rosada, pico amarillo y patas negras';
   } else if (nombreLower.contains('conejito') ||
       nombreLower.contains('conejo')) {
@@ -60,16 +76,44 @@ String derivarDescripcionVisualBase({
     rasgosBase = 'personaje tipo patito, plumaje tierno, cabeza redondeada, pico naranja ancho y patitas palmeadas';
   } else if (nombreLower.contains('osito') || nombreLower.contains('oso')) {
     rasgosBase = 'personaje tipo osito, cuerpo redondeado y tierno, orejas circulares y expresión amable';
+    // 3. Criaturas fantásticas
   } else if (nombreLower.contains('dinosaurio') ||
       nombreLower.contains('dino')) {
     rasgosBase = 'personaje tipo dinosaurio pequeño infantil, cresta suave en el lomo, silueta amigable y patitas cortas';
   } else if (nombreLower.contains('dragon') || nombreLower.contains('dragón')) {
     rasgosBase = 'personaje tipo dragón infantil fantástico, alitas pequeñas, escamas coloridas y mirada noble';
+  } else if (nombreLower.contains('monstruo') ||
+      nombreLower.contains('monstruito')) {
+    rasgosBase = 'personaje tipo criatura fantástica amistosa, silueta divertida, ojos simpáticos y carácter tierno';
+  } else if (nombreLower.contains('unicornio')) {
+    rasgosBase = 'personaje tipo unicornio mágico infantil, cuerno en espiral, crin colorida y expresión dulce';
+    // 4. Robots y tecnología
   } else if (nombreLower.contains('robot')) {
     rasgosBase = 'personaje tipo robot simpático, cuerpo geométrico redondeado, botones de colores y antena alegre';
+    // 5. Vehículos
+  } else if (nombreLower.contains('coche') ||
+      nombreLower.contains('auto') ||
+      nombreLower.contains('carro') ||
+      nombreLower.contains('camión') ||
+      nombreLower.contains('camion') ||
+      nombreLower.contains('avion') ||
+      nombreLower.contains('avión') ||
+      nombreLower.contains('cohete') ||
+      nombreLower.contains('tren') ||
+      nombreLower.contains('barco')) {
+    rasgosBase = 'personaje tipo vehículo con personalidad amigable, ruedas o alas redondeadas, ventanas expresivas y diseño infantil';
+    // 6. Objetos o plantas personificados
+  } else if (nombreLower.contains('árbol') ||
+      nombreLower.contains('arbol') ||
+      nombreLower.contains('flor') ||
+      nombreLower.contains('estrella') ||
+      nombreLower.contains('sol') ||
+      nombreLower.contains('luna')) {
+    rasgosBase = 'personaje tipo elemento natural u objeto personificado, rostro tierno y expresivo integrado en su forma';
+    // 7. FALLBACK NEUTRAL Y GENERAL (Sin asumir especie sin evidencia)
   } else {
     rasgosBase =
-        'personaje infantil ilustrado llamado $nombreLimpio, silueta amigable y expresiva para cuento de primaria';
+        'personaje diseñado por el estudiante llamado $nombreLimpio, basado fielmente en su dibujo original, conservando su forma, silueta, estructura, colores y detalles distintivos';
   }
 
   // Integración de colores utilizados en el dibujo

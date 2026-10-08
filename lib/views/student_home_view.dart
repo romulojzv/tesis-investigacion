@@ -454,7 +454,7 @@ class _StudentOptionCardState extends State<_StudentOptionCard> {
             borderRadius: BorderRadius.circular(28),
             onTap: widget.onTap,
             child: Padding(
-              padding: const EdgeInsets.all(26),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

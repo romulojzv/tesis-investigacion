@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../controllers/story_controller.dart';
 import '../models/cuento.dart';
 import '../models/escena.dart';
+import '../services/image_service.dart';
 import '../services/narracion_service.dart';
 import '../widgets/ilustracion_escena_widget.dart';
 
@@ -61,6 +63,7 @@ class _StoryViewState extends State<StoryView> {
   final Set<int> _escenasLeidas = {};
 
   final Map<int, EstadoImagenEscena> _estadosImagen = {};
+  final Map<int, ImageAuthException> _erroresAuthImagen = {};
   Timer? _timerAutoNarracion;
 
   Escena get _escenaActual {
@@ -718,16 +721,58 @@ class _StoryViewState extends State<StoryView> {
       setState(() {
         if (url != null && url.isNotEmpty) {
           _estadosImagen[numero] = EstadoImagenEscena.cargada;
+          _erroresAuthImagen.remove(numero);
         } else {
           _estadosImagen[numero] = EstadoImagenEscena.error;
         }
       });
+    } on ImageAuthException catch (authErr) {
+      if (!mounted) return;
+      setState(() {
+        _estadosImagen[numero] = EstadoImagenEscena.error;
+        _erroresAuthImagen[numero] = authErr;
+      });
+
+      if (authErr.statusCode == 401) {
+        _manejarSesionExpirada(authErr.message);
+      } else if (authErr.statusCode == 403) {
+        _mostrarErrorAccesoDenegado(authErr.message);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _estadosImagen[numero] = EstadoImagenEscena.error;
       });
     }
+  }
+
+  void _manejarSesionExpirada(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Tu sesión ha expirado o no es válida. Por favor, inicia sesión nuevamente.',
+        ),
+        backgroundColor: Color(0xFFC62828),
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    try {
+      Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
+    widget.onSalir();
+  }
+
+  void _mostrarErrorAccesoDenegado(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: const Color(0xFFC62828),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Widget _buildImagen() {
@@ -786,34 +831,50 @@ class _StoryViewState extends State<StoryView> {
         );
 
       case EstadoImagenEscena.error:
+        final authError = _erroresAuthImagen[escena.numero];
+        final esErrorAuth = authError != null;
+
         return Container(
           color: const Color(0xFFFFF3E0),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.broken_image_rounded,
+                Icon(
+                  esErrorAuth
+                      ? Icons.lock_clock_rounded
+                      : Icons.broken_image_rounded,
                   size: 60,
-                  color: Color(0xFFD32F2F),
+                  color: const Color(0xFFD32F2F),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'No pudimos crear la ilustración.',
+                Text(
+                  esErrorAuth
+                      ? (authError.statusCode == 401
+                            ? 'Sesión no válida o expirada.'
+                            : 'Acceso denegado.')
+                      : 'No pudimos crear la ilustración.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF5D4037),
                   ),
                 ),
                 const SizedBox(height: 14),
-                FilledButton.tonalIcon(
-                  onPressed: () =>
-                      _solicitarGeneracionImagen(forzarReintento: true),
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('Reintentar'),
-                ),
+                if (!esErrorAuth)
+                  FilledButton.tonalIcon(
+                    onPressed: () =>
+                        _solicitarGeneracionImagen(forzarReintento: true),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Reintentar'),
+                  )
+                else if (authError.statusCode == 401)
+                  FilledButton.tonalIcon(
+                    onPressed: () => _manejarSesionExpirada(authError.message),
+                    icon: const Icon(Icons.login_rounded, size: 18),
+                    label: const Text('Iniciar sesión'),
+                  ),
               ],
             ),
           ),

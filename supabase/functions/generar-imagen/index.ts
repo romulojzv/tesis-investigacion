@@ -1,5 +1,7 @@
-import '@supabase/functions-js/edge-runtime.d.ts';
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from '@supabase/supabase-js';
+import { validarEstudianteAutenticado } from '../_shared/auth.ts';
+import { construirFormDataEdicionPollinations } from './pollinations_client.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +44,7 @@ interface SolicitudGeneracionImagen {
   referenciaVisualUrl?: string;
   modelo?: string;
   seed?: number;
+  esModoDibujo?: boolean;
 }
 
 /**
@@ -121,6 +124,7 @@ function construirPromptVisual(params: {
   escenario?: string;
   numeroEscena: number;
   tieneReferenciaVisual: boolean;
+  esModoDibujo?: boolean;
 }): string {
   const partes: string[] = [];
 
@@ -129,45 +133,67 @@ function construirPromptVisual(params: {
     "Children's storybook illustration, warm and vibrant storybook art style, clean colorful digital watercolor, soft whimsical lighting, joyful atmosphere, high quality picture book for primary school children",
   );
 
-  // 2. Protagonista y descripción física diferenciados (Ficha canónica permanente)
+  // 2. [SECCIÓN 1] IDENTIDAD DEL PROTAGONISTA — PRESERVAR IDENTIDAD
   const desc = params.descripcionPersonaje?.trim();
   if (desc && desc.length > 0) {
     partes.push(
-      `Protagonist: ${params.personajePrincipal}. CANONICAL BASE TRAITS: ${desc}. ` +
-      `STRICT CHARACTER CONTINUITY: Keep the exact same protagonist across all scenes with the same base species, body silhouette, facial features, and core color palette. ` +
-      `Do not transform or convert the protagonist into a different creature or character. ` +
-      `Only alter pose, action, and setting environment according to the scene narrative`,
+      `CHARACTER IDENTITY (PRESERVE EXACT IDENTITY): Protagonist name: "${params.personajePrincipal}". CANONICAL BASE TRAITS: ${desc}. ` +
+      `STRICT CHARACTER CONTINUITY: Keep the exact same protagonist across all scenes with the same base visual nature, entity type, body silhouette, structural features, and core color palette. ` +
+      `Do not transform or convert the protagonist into a different type of creature, object, or character.`,
     );
   } else {
     partes.push(
-      `Protagonist: ${params.personajePrincipal}. Strict character continuity across all scenes: same species, same form, same key traits`,
+      `CHARACTER IDENTITY (PRESERVE EXACT IDENTITY): Protagonist: "${params.personajePrincipal}". Strict character continuity across all scenes: same visual nature, same form, same key traits`,
     );
   }
 
-  // 3. Escenario / Entorno
-  if (params.escenario && params.escenario.trim().length > 0) {
-    partes.push(`Setting: ${params.escenario.trim()}`);
-  }
-
-  // 4. Acción concreta de la escena
+  // 3. [SECCIÓN 2] ESCENA ACTUAL — REPRESENTAR OBLIGATORIAMENTE ESTA ACCIÓN Y LUGAR
   partes.push(
-    `Story scene action (Scene ${params.numeroEscena}): ${params.contenidoEscena.trim()}`,
+    `CURRENT SCENE NARRATIVE (SCENE ${params.numeroEscena} — MUST DEPICT THIS EXACT ACTION AND SETTING): ` +
+    `The illustration MUST vividly portray the specific events, actions, location, and key objects of this scene: "${params.contenidoEscena.trim()}". ` +
+    (params.escenario && params.escenario.trim().length > 0 ? `Setting environment: ${params.escenario.trim()}. ` : '') +
+    `Visually depict every distinct narrative element mentioned in the scene text (places, objects, gestures, atmosphere).`,
   );
 
-  // 5. Guía de consistencia estricta si hay referencia previa (Escenas 2-4 o dibujo/PDF)
+  // 4. [SECCIÓN 3] COMPOSICIÓN Y ENCUADRE DINÁMICO — CAMBIAR SEGÚN LA HISTORIA
+  partes.push(
+    `COMPOSITION AND STAGING (MUST CHANGE WHEN STORY CHANGES): Create a genuinely new illustration with fresh composition, dynamic camera angle, and scene-appropriate background for Scene ${params.numeroEscena}. ` +
+    `Adapt the protagonist's pose, interaction, and orientation to match this specific action. ` +
+    `Expressly AVOID: same pose, same camera framing, same background, same composition across scenes.`,
+  );
+
+  // 5. [SECCIÓN 4] USO DE REFERENCIA — IDENTIDAD DEL PERSONAJE
   if (params.tieneReferenciaVisual) {
-    partes.push(
-      'VISUAL REFERENCE & IDENTITY ANCHOR: The input reference image establishes the canonical protagonist. ' +
-      'Maintain exact same species, character silhouette, base colors, facial structure, and iconic features. ' +
-      'Do NOT redesign or morph the protagonist into a different character. ' +
-      'Children storybook illustration style, prioritize whimsical child-friendly continuity, not realism. ' +
-      'Only adapt pose, action and setting to match this specific scene',
-    );
+    if (params.esModoDibujo) {
+      partes.push(
+        `ORIGINAL DRAWING REFERENCE (CHARACTER IDENTITY REFERENCE ONLY): The reference image is the child's ORIGINAL DRAWING of the protagonist. ` +
+        `Strictly preserve the protagonist's identity, species, facial/body silhouette, and core colors from this drawing. ` +
+        `Create a rich, complete storybook scene with new environment, dynamic pose, and fresh composition for Scene ${params.numeroEscena} matching the current scene text. ` +
+        `Do not copy a static pose or keep empty white paper background.`,
+      );
+    } else {
+      partes.push(
+        `PREVIOUS IMAGE REFERENCE (CHARACTER IDENTITY REFERENCE ONLY): The previous image is a CHARACTER IDENTITY reference only. ` +
+        `Do not copy its pose, camera angle, background, scenery, or composition. ` +
+        `Create a genuinely new illustration that depicts the CURRENT scene text. ` +
+        `If the previous image conflicts with the current narrative, follow the current narrative while preserving only the protagonist's identity.`,
+      );
+    }
   }
 
-  // 6. Reglas estrictas de calidad y negativas
+  // 7. SEGURIDAD INFANTIL Y CONTENIDO APROPIADO PARA PRIMARIA
   partes.push(
-    'Artistic rules: Clear focal composition, age-appropriate for young children, beautiful book illustration. Absolutely NO text, NO written words, NO letters, NO speech bubbles, NO subtitles, NO watermarks, NO blurry background',
+    'CHILD-SAFE CONTENT RULES: Safe and age-appropriate for primary school children (ages 6-12). ' +
+    'ALLOWED WHEN PRESENT IN THE SOURCE DRAWING OR NARRATIVELY RELEVANT: child-appropriate fantasy, adventure, and action in a non-graphic storybook style. ' +
+    'Do not introduce weapons, armor, combat elements, or other major props if they are not present in the original drawing or required by the story context. ' +
+    'Existing benign fantasy weapons must not be automatically converted into toys. ' +
+    'STRICTLY FORBIDDEN: sexual or sexualized content, explicit nudity, graphic violence, blood or gore, torture, explicitly depicted drugs, explicit hate symbols, extreme horror or terrifying imagery, and clearly adult content. ' +
+    'If an element is truly inappropriate, neutralize only that specific inappropriate part while preserving the original benign adventure concept',
+  );
+
+  // 8. Reglas estrictas de calidad y presentación artística
+  partes.push(
+    'Artistic presentation: Clear focal composition, age-appropriate for young children, beautiful book illustration. Absolutely NO text, NO written words, NO letters, NO speech bubbles, NO subtitles, NO watermarks, NO blurry background',
   );
 
   return partes.join('. ');
@@ -256,7 +282,7 @@ async function solicitarTextToImagePollinations(
 }
 
 /**
- * FLUJO B: Edición / Generación con Referencia Visual (Image-to-Image / Multi-reference)
+ * FLUJO B: Edición / Generación con Referencia Visual (Image-to-Image)
  * Endpoint: POST https://gen.pollinations.ai/v1/images/edits
  * Formato: multipart/form-data
  * Modelo: black-forest-labs/flux.2-klein-4b
@@ -265,33 +291,21 @@ async function solicitarEdicionConReferenciaPollinations(params: {
   prompt: string;
   modelo: string;
   referenciaBytes: Uint8Array;
-  anchorBytes?: Uint8Array | null;
   mimeType: string;
-  mimeAnchor?: { mime: string; ext: string };
   ext: string;
   apiKey: string;
   seed: number;
 }): Promise<{ buffer: Uint8Array; contentType: string; statusHttp: number }> {
   const url = `${POLLINATIONS_BASE_URL}/v1/images/edits`;
 
-  const formData = new FormData();
-  // Si hay anchor previo de escena anterior, se usa como imagen base prioritaria
-  const refPrincipal = params.anchorBytes || params.referenciaBytes;
-  const mimePrincipal = params.anchorBytes ? params.mimeAnchor!.mime : params.mimeType;
-  const extPrincipal = params.anchorBytes ? params.mimeAnchor!.ext : params.ext;
-
-  const fileBlob = new Blob([refPrincipal], { type: mimePrincipal });
-  formData.append('image', fileBlob, `referencia_protagonista.${extPrincipal}`);
-
-  if (params.anchorBytes && params.referenciaBytes) {
-    const fileBlobOrig = new Blob([params.referenciaBytes], { type: params.mimeType });
-    formData.append('image_original', fileBlobOrig, `referencia_original.${params.ext}`);
-  }
-
-  formData.append('prompt', params.prompt);
-  formData.append('model', params.modelo);
-  formData.append('size', '1024x768');
-  formData.append('seed', params.seed.toString());
+  const formData = construirFormDataEdicionPollinations({
+    prompt: params.prompt,
+    modelo: params.modelo,
+    referenciaBytes: params.referenciaBytes,
+    mimeType: params.mimeType,
+    ext: params.ext,
+    seed: params.seed,
+  });
 
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${params.apiKey}`,
@@ -378,8 +392,23 @@ async function solicitarEdicionConReferenciaPollinations(params: {
 // ============================================================================
 
 Deno.serve(async (req) => {
+  // 1. Pre-vuelo CORS (sin requerir autenticación)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // 2. Restricción de método HTTP
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Método no permitido. Solo se acepta POST.' }),
+      { status: 405, headers: jsonHeaders },
+    );
+  }
+
+  // 3. SEGURIDAD: Validar que el usuario tenga sesión válida y rol 'estudiante'
+  const authResult = await validarEstudianteAutenticado(req, corsHeaders);
+  if (!authResult.ok) {
+    return authResult.response!;
   }
 
   let bodyCuentoId = 'desconocido';
@@ -417,6 +446,7 @@ Deno.serve(async (req) => {
       referenciaVisualBase64,
       referenciaAnchorBase64,
       modelo,
+      esModoDibujo,
     } = body;
 
     bodyCuentoId = cuentoId || 'desconocido';
@@ -429,6 +459,24 @@ Deno.serve(async (req) => {
         }),
         { status: 400, headers: jsonHeaders },
       );
+    }
+
+    // 4. Si el cuento existe en la base de datos, validar propiedad mediante RLS
+    if (cuentoId) {
+      const { data: cuento } = await authResult.userClient!
+        .from('cuentos')
+        .select('id, estudiante_id')
+        .eq('id', cuentoId)
+        .maybeSingle();
+
+      if (cuento && cuento.estudiante_id && cuento.estudiante_id !== authResult.userId) {
+        return new Response(
+          JSON.stringify({
+            error: 'Acceso denegado. El cuento especificado pertenece a otro estudiante.',
+          }),
+          { status: 403, headers: jsonHeaders },
+        );
+      }
     }
 
     // Decodificar y validar bytes de referencia visual original
@@ -488,6 +536,7 @@ Deno.serve(async (req) => {
       escenario,
       numeroEscena,
       tieneReferenciaVisual,
+      esModoDibujo: esModoDibujo === true,
     });
 
     // LOG SEGURO DE INICIO (Sin credenciales ni base64 completo)
@@ -504,14 +553,18 @@ Deno.serve(async (req) => {
 
     if (tieneReferenciaVisual) {
       // FLUJO B: Multipart POST /v1/images/edits
+      // En modo dibujo, la referencia enviada como 'image' es SIEMPRE el dibujo original
+      // del estudiante (referenciaBytes). Esto asegura la preservación fiel de la identidad
+      // sin reutilizar imágenes renderizadas previas que congelarían fondo o pose.
+      const refFinal = (referenciaBytes || anchorBytes)!;
+      const mimeFinal = referenciaBytes ? mimeReferencia : mimeAnchor;
+
       resultadoImagen = await solicitarEdicionConReferenciaPollinations({
         prompt: promptVisual,
         modelo: modeloFinal,
-        referenciaBytes: (referenciaBytes || anchorBytes)!,
-        anchorBytes,
-        mimeType: mimeReferencia.mime,
-        mimeAnchor,
-        ext: mimeReferencia.ext,
+        referenciaBytes: refFinal,
+        mimeType: mimeFinal.mime,
+        ext: mimeFinal.ext,
         apiKey: pollinationsApiKey,
         seed,
       });

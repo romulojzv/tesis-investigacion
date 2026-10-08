@@ -13,15 +13,35 @@ class SupabaseImageService implements ImageService {
 
   SupabaseImageService({required this.client});
 
+  String _obtenerTokenSesionActiva() {
+    final session = client.auth.currentSession;
+    if (session == null) {
+      throw ImageAuthException(
+        statusCode: 401,
+        message: 'No hay una sesión activa. Inicie sesión como estudiante para generar ilustraciones.',
+      );
+    }
+    if (session.isExpired) {
+      throw ImageAuthException(
+        statusCode: 401,
+        message: 'La sesión ha expirado. Por favor, vuelva a iniciar sesión.',
+      );
+    }
+    return session.accessToken;
+  }
+
   @override
   Future<String> generarIlustracionEscena(
     SolicitudImagenEscena solicitud,
   ) async {
+    final token = _obtenerTokenSesionActiva();
+
     final body = <String, dynamic>{
       'cuentoId': solicitud.cuentoId,
       'numeroEscena': solicitud.numeroEscena,
       'personajePrincipal': solicitud.nombreProtagonista,
       'contenidoEscena': solicitud.contenidoEscena,
+      'esModoDibujo': solicitud.esModoDibujo,
     };
 
     if (solicitud.descripcionPersonaje != null &&
@@ -56,7 +76,11 @@ class SupabaseImageService implements ImageService {
 
     try {
       final response = await client.functions
-          .invoke('generar-imagen', body: body)
+          .invoke(
+            'generar-imagen',
+            headers: {'Authorization': 'Bearer $token'},
+            body: body,
+          )
           .timeout(const Duration(seconds: 45));
 
       debugPrint(
@@ -88,8 +112,38 @@ class SupabaseImageService implements ImageService {
       }
 
       return imageUrl;
+    } on FunctionException catch (fe) {
+      debugPrint(
+        '[SupabaseImageService] Error HTTP ${fe.status} en generar-imagen: ${fe.details}',
+      );
+      if (fe.status == 401) {
+        throw ImageAuthException(
+          statusCode: 401,
+          message: 'Sesión no autorizada o expirada al generar ilustración.',
+        );
+      }
+      if (fe.status == 403) {
+        throw ImageAuthException(
+          statusCode: 403,
+          message: 'Acceso denegado. Generación de imágenes disponible exclusivamente para estudiantes.',
+        );
+      }
+      rethrow;
+    } on ImageAuthException {
+      rethrow;
     } catch (e) {
       debugPrint('[SupabaseImageService] Error generando ilustración: $e');
+      final errStr = e.toString();
+      if (errStr.contains('Sesión no válida o expirada') ||
+          errStr.contains('Sesión no autorizada') ||
+          errStr.contains('JWT expired')) {
+        throw ImageAuthException(
+          statusCode: 401,
+          message: e is StateError
+              ? e.message
+              : 'Sesión no autorizada o expirada al generar ilustración.',
+        );
+      }
       rethrow;
     }
   }
@@ -100,16 +154,29 @@ class SupabaseImageService implements ImageService {
     }
 
     if (data is! Map) {
-      throw StateError(
-        'La respuesta del servicio de imágenes tiene un formato inválido.',
-      );
+      throw StateError('La respuesta del servidor no tiene un formato válido.');
     }
 
     final json = Map<String, dynamic>.from(data);
 
     if (json['error'] != null) {
-      final detalle = json['detalle'] != null ? ': ${json['detalle']}' : '';
-      throw StateError('${json['error']}$detalle');
+      final mensaje = json['error'].toString();
+      final detalle = json['detalle']?.toString();
+      final textoCompleto = (detalle != null && detalle.isNotEmpty)
+          ? '$mensaje: $detalle'
+          : mensaje;
+
+      if (mensaje.contains('Sesión no válida o expirada') ||
+          mensaje.contains('JWT expired') ||
+          mensaje.contains('Token inválido')) {
+        throw ImageAuthException(statusCode: 401, message: textoCompleto);
+      }
+      if (mensaje.contains('Acceso denegado') ||
+          mensaje.contains('exclusivamente para estudiantes')) {
+        throw ImageAuthException(statusCode: 403, message: textoCompleto);
+      }
+
+      throw StateError(textoCompleto);
     }
 
     return json;

@@ -85,6 +85,7 @@ class StoryController {
 
     final escenaInicial = narrativaService.crearEscenaInicialDemo(
       nombrePersonaje: nombre,
+      descripcionPersonaje: descFinal,
     );
 
     cuento.agregarEscena(escenaInicial);
@@ -724,6 +725,7 @@ class StoryController {
         escenario: cuento.escenarioOriginal,
         referenciaVisualBytes: referenciaBytes,
         referenciaAnteriorBytes: referenciaAnteriorBytes,
+        esModoDibujo: cuento.origen == CuentoOrigen.dibujo,
       );
 
       final url = await imageService!
@@ -752,8 +754,12 @@ class StoryController {
         return urlFinal;
       }
       return null;
+    } on ImageAuthException {
+      // 401 y 403 son errores de autenticación/autorización:
+      // NO deben enmascararse como fallo genérico de imagen ni reintentarse automáticamente.
+      rethrow;
     } catch (_) {
-      // Si la imagen falla, NO bloquear el cuento ni la narrativa
+      // Si la imagen falla por causas transitorias (red, 5xx), NO bloquear el cuento ni la narrativa
       return null;
     } finally {
       _generacionesImagenEnCurso.remove(clave);

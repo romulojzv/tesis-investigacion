@@ -10,6 +10,21 @@ class SupabaseAiService implements AiService {
 
   SupabaseAiService({required this.client});
 
+  String _obtenerTokenSesionActiva() {
+    final session = client.auth.currentSession;
+    if (session == null) {
+      throw StateError(
+        'No hay una sesión activa. Inicie sesión como estudiante para continuar.',
+      );
+    }
+    if (session.isExpired) {
+      throw StateError(
+        'La sesión ha expirado. Por favor, vuelva a iniciar sesión.',
+      );
+    }
+    return session.accessToken;
+  }
+
   // ======================================================
   // ANALIZAR HISTORIA ORIGINAL
   // ======================================================
@@ -22,13 +37,36 @@ class SupabaseAiService implements AiService {
       throw ArgumentError('El texto no puede estar vacío.');
     }
 
-    final response = await client.functions
-        .invoke('analizar-historia', body: {'texto': contenido})
-        .timeout(const Duration(seconds: 85));
+    final token = _obtenerTokenSesionActiva();
 
-    final json = _validarRespuesta(response.data);
+    try {
+      final response = await client.functions
+          .invoke(
+            'analizar-historia',
+            headers: {'Authorization': 'Bearer $token'},
+            body: {'texto': contenido},
+          )
+          .timeout(const Duration(seconds: 85));
 
-    return StoryAnalysis.fromJson(json);
+      final json = _validarRespuesta(response.data);
+
+      return StoryAnalysis.fromJson(json);
+    } on FunctionException catch (fe) {
+      debugPrint(
+        '[SupabaseAiService] Error HTTP ${fe.status} en analizar-historia: ${fe.details}',
+      );
+      if (fe.status == 401) {
+        throw StateError(
+          'Sesión no autorizada o expirada. Inicie sesión nuevamente.',
+        );
+      }
+      if (fe.status == 403) {
+        throw StateError(
+          'Acceso denegado. Función de IA disponible únicamente para estudiantes.',
+        );
+      }
+      rethrow;
+    }
   }
 
   // ======================================================
@@ -106,43 +144,55 @@ class SupabaseAiService implements AiService {
       }
     }
 
-    debugPrint(
-      '[DIAGNÓSTICO D] Antes de invocar generar-escena: '
-      'titulo="$titulo", '
-      'personajePrincipal="$personajePrincipal", '
-      'numeroEscena=$numeroEscena, '
-      'descripcionPersonaje="${descripcionPersonaje ?? '(null)'}"',
-    );
+    final token = _obtenerTokenSesionActiva();
 
-    final response = await client.functions
-        .invoke(
-          'generar-escena',
-          body: {
-            'titulo': titulo,
-            'personajePrincipal': personajePrincipal,
-            if (personajeOriginal != null &&
-                personajeOriginal.trim().isNotEmpty)
-              'personajeOriginal': personajeOriginal.trim(),
-            'esPersonajeNuevo': esPersonajeNuevo,
-            if (descripcionPersonaje != null &&
-                descripcionPersonaje.trim().isNotEmpty)
-              'descripcionPersonaje': descripcionPersonaje.trim(),
-            'textoFuente': textoFuente,
-            'resumenOriginal': resumenOriginal,
-            'escenarioOriginal': escenarioOriginal,
-            'conflictoPrincipal': conflictoPrincipal,
-            'finalOriginal': finalOriginal,
-            'contextoNarrativo': contextoNarrativo,
-            'decisionActual': decisionActual,
-            'numeroEscena': numeroEscena,
-            'esUltimaEscena': esUltimaEscena,
-          },
-        )
-        .timeout(const Duration(seconds: 85));
+    try {
+      final response = await client.functions
+          .invoke(
+            'generar-escena',
+            headers: {'Authorization': 'Bearer $token'},
+            body: {
+              'titulo': titulo,
+              'personajePrincipal': personajePrincipal,
+              if (personajeOriginal != null &&
+                  personajeOriginal.trim().isNotEmpty)
+                'personajeOriginal': personajeOriginal.trim(),
+              'esPersonajeNuevo': esPersonajeNuevo,
+              if (descripcionPersonaje != null &&
+                  descripcionPersonaje.trim().isNotEmpty)
+                'descripcionPersonaje': descripcionPersonaje.trim(),
+              'textoFuente': textoFuente,
+              'resumenOriginal': resumenOriginal,
+              'escenarioOriginal': escenarioOriginal,
+              'conflictoPrincipal': conflictoPrincipal,
+              'finalOriginal': finalOriginal,
+              'contextoNarrativo': contextoNarrativo,
+              'decisionActual': decisionActual,
+              'numeroEscena': numeroEscena,
+              'esUltimaEscena': esUltimaEscena,
+            },
+          )
+          .timeout(const Duration(seconds: 85));
 
-    final json = _validarRespuesta(response.data);
+      final json = _validarRespuesta(response.data);
 
-    return GeneratedScene.fromJson(json);
+      return GeneratedScene.fromJson(json);
+    } on FunctionException catch (fe) {
+      debugPrint(
+        '[SupabaseAiService] Error HTTP ${fe.status} en generar-escena: ${fe.details}',
+      );
+      if (fe.status == 401) {
+        throw StateError(
+          'Sesión no autorizada o expirada. Inicie sesión nuevamente.',
+        );
+      }
+      if (fe.status == 403) {
+        throw StateError(
+          'Acceso denegado. Función de IA disponible únicamente para estudiantes.',
+        );
+      }
+      rethrow;
+    }
   }
 
   // ======================================================

@@ -169,4 +169,20 @@ class AuthService {
       debugPrint('[AuthService] Error al cerrar sesión: $e');
     }
   }
+
+  /// Elimina únicamente la sesión local restaurada en el cliente
+  /// (por ejemplo, al iniciar la aplicación en computadoras escolares compartidas),
+  /// sin invalidar la sesión en el servidor.
+  Future<void> limpiarSesionLocalAlInicio() async {
+    try {
+      final client =
+          _clientOverride ??
+          (Supabase.instance.isInitialized ? Supabase.instance.client : null);
+      if (client != null) {
+        await client.auth.signOut(scope: SignOutScope.local);
+      }
+    } catch (e) {
+      debugPrint('[AuthService] Error al limpiar sesión local al inicio: $e');
+    }
+  }
 }
