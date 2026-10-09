@@ -22,3 +22,15 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/crear-estudiante/deno.json"
 entrypoint = "./functions/crear-estudiante/index.ts"
+
+[functions.generar-quiz]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generar-quiz/deno.json"
+entrypoint = "./functions/generar-quiz/index.ts"
+
+[functions.enviar-quiz]
+enabled = true
+verify_jwt = true
+import_map = "./functions/enviar-quiz/deno.json"
+entrypoint = "./functions/enviar-quiz/index.ts"

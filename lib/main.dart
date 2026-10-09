@@ -22,11 +22,15 @@ import 'services/ai_service.dart';
 import 'services/document_service.dart';
 import 'services/narrativa_service.dart';
 import 'models/user_profile.dart';
+import 'models/quiz_question.dart';
+import 'models/quiz_result.dart';
 import 'services/auth_service.dart';
+import 'services/supabase_quiz_service.dart';
 import 'views/auth_gate.dart';
 import 'views/character_customization_view.dart';
 import 'views/document_view.dart';
 import 'views/draw_view.dart';
+import 'views/quiz_view.dart';
 import 'views/story_view.dart';
 import 'views/student_home_view.dart';
 
@@ -149,6 +153,7 @@ class CuentosMagicosApp extends StatelessWidget {
   final ImageService? imageService;
   final NarrativaService? narrativaService;
   final DocumentService? documentService;
+  final QuizService? quizService;
   final Future<void>? initializationFuture;
 
   const CuentosMagicosApp({
@@ -159,6 +164,7 @@ class CuentosMagicosApp extends StatelessWidget {
     this.imageService,
     this.narrativaService,
     this.documentService,
+    this.quizService,
     this.initializationFuture,
   });
 
@@ -171,6 +177,7 @@ class CuentosMagicosApp extends StatelessWidget {
       imageService: imageService,
       narrativaService: narrativaService,
       documentService: documentService,
+      quizService: quizService,
     );
 
     return MaterialApp(
@@ -199,7 +206,7 @@ class CuentosMagicosApp extends StatelessWidget {
   }
 }
 
-enum AppScreen { home, drawing, document, characterCustomization, story }
+enum AppScreen { home, drawing, document, characterCustomization, story, quiz }
 
 class _FallbackAiService implements AiService {
   @override
@@ -254,6 +261,49 @@ class _FallbackAiService implements AiService {
   );
 }
 
+class _FallbackQuizService implements QuizService {
+  @override
+  Future<QuizStartResponse> generarQuiz(String cuentoId) async {
+    return QuizStartResponse(
+      intentoId: 'mock-intento',
+      estado: 'en_progreso',
+      preguntas: [
+        for (var i = 1; i <= 5; i++)
+          QuizQuestion(
+            numero: i,
+            pregunta: 'Pregunta $i de comprensión',
+            opciones: const ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<QuizResult> enviarQuiz({
+    required String intentoId,
+    required List<QuizAnswerSubmission> respuestas,
+  }) async {
+    return QuizResult(
+      intentoId: intentoId,
+      puntaje: 5,
+      total: 5,
+      porcentaje: 100,
+      respuestas: [
+        for (var i = 1; i <= 5; i++)
+          QuizQuestionResult(
+            numero: i,
+            pregunta: 'Pregunta $i de comprensión',
+            opciones: const ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
+            indiceSeleccionado: 0,
+            indiceCorrecto: 0,
+            esCorrecta: true,
+            explicacion: 'Explicación de la pregunta $i',
+          ),
+      ],
+    );
+  }
+}
+
 class _HomeRouter extends StatefulWidget {
   final AuthService? authService;
   final CuentoRepository? cuentoRepository;
@@ -261,6 +311,7 @@ class _HomeRouter extends StatefulWidget {
   final ImageService? imageService;
   final NarrativaService? narrativaService;
   final DocumentService? documentService;
+  final QuizService? quizService;
 
   const _HomeRouter({
     this.authService,
@@ -269,6 +320,7 @@ class _HomeRouter extends StatefulWidget {
     this.imageService,
     this.narrativaService,
     this.documentService,
+    this.quizService,
   });
 
   @override
@@ -304,6 +356,8 @@ class _HomeRouterState extends State<_HomeRouter> {
   late final StoryController _storyController;
 
   late final AuthService _authService;
+
+  late final QuizService _quizService;
 
   @override
   void initState() {
@@ -343,6 +397,11 @@ class _HomeRouterState extends State<_HomeRouter> {
           widget.imageService ??
           (client != null ? SupabaseImageService(client: client) : null),
     );
+    _quizService =
+        widget.quizService ??
+        (client != null
+            ? SupabaseQuizService(client: client)
+            : _FallbackQuizService());
   }
 
   // =========================================================
@@ -830,9 +889,37 @@ class _HomeRouterState extends State<_HomeRouter> {
           controller: _storyController,
           onSalir: _irInicio,
           onNarrar: _narrarDemo,
-          onIrEvaluacion: () {
-            debugPrint('Pendiente: QuizView');
+          onIrEvaluacion: () async {
+            try {
+              await _cuentoRepository.guardarCuento(cuento);
+            } catch (e) {
+              debugPrint('Aviso guardando cuento previo al quiz: $e');
+            }
+            if (mounted) {
+              setState(() {
+                _pantalla = AppScreen.quiz;
+              });
+            }
           },
+        );
+
+      // =====================================================
+      // QUIZ DE COMPRENSIÓN
+      // =====================================================
+
+      case AppScreen.quiz:
+        final cuento = _cuento;
+
+        if (cuento == null) {
+          return _buildStudentHome(perfil);
+        }
+
+        return QuizView(
+          cuentoId: cuento.id,
+          tituloCuento: cuento.titulo,
+          quizService: _quizService,
+          onVolver: _irInicio,
+          onFinalizado: _irInicio,
         );
 
       // =====================================================
