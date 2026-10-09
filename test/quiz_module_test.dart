@@ -610,12 +610,18 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('1 resultado(s)'), findsOneWidget);
-        expect(find.text('4 / 5'), findsOneWidget);
+
+        // Seleccionar estudiante en la tabla jerárquica
+        final itemEstudiante = find.text('Estudiante C');
+        expect(itemEstudiante, findsOneWidget);
+        await tester.tap(itemEstudiante);
+        await tester.pump();
+
+        // Vista de resultados del estudiante
+        expect(find.text('Resultados de Estudiante C'), findsOneWidget);
+        expect(find.text('La aventura de Lucas'), findsOneWidget);
+        expect(find.text('4/5'), findsOneWidget);
         expect(find.text('80 %'), findsOneWidget);
-        expect(
-          find.text('Estudiante C | La aventura de Lucas | 4/5 | 80 %'),
-          findsOneWidget,
-        );
 
         // Abrir detalle
         final btnVerRespuestas = find.text('Ver respuestas');
@@ -625,7 +631,8 @@ void main() {
 
         // Diálogo de detalle
         expect(find.text('Detalle: La aventura de Lucas'), findsOneWidget);
-        expect(find.text('1. ¿Qué encontró Lucas?'), findsOneWidget);
+        expect(find.text('Pregunta 1'), findsOneWidget);
+        expect(find.text('¿Qué encontró Lucas?'), findsOneWidget);
         expect(
           find.text('Explicación: Encontró a su gato en el árbol.'),
           findsOneWidget,

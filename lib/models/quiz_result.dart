@@ -35,26 +35,75 @@ class QuizQuestionResult {
   }
 
   factory QuizQuestionResult.fromJson(Map<String, dynamic> json) {
-    final opcionesRaw = json['opciones'] as List<dynamic>? ?? [];
+    final opcionesRaw =
+        (json['opciones'] ?? json['options']) as List<dynamic>? ?? [];
+
+    final numVal =
+        json['numero_pregunta'] ?? json['numero'] ?? json['numeroPregunta'];
+    final indSel = json['indice_seleccionado'] ?? json['indiceSeleccionado'];
+    final indCorr = json['indice_correcto'] ?? json['indiceCorrecto'];
+    final esCorr = json['es_correcta'] ?? json['esCorrecta'];
+
+    final int numParsed;
+    if (numVal is int) {
+      numParsed = numVal;
+    } else if (numVal is num) {
+      numParsed = numVal.toInt();
+    } else {
+      numParsed = int.tryParse(numVal?.toString() ?? '') ?? 1;
+    }
+
+    final int indSelParsed;
+    if (indSel is int) {
+      indSelParsed = indSel;
+    } else if (indSel is num) {
+      indSelParsed = indSel.toInt();
+    } else {
+      indSelParsed = int.tryParse(indSel?.toString() ?? '') ?? -1;
+    }
+
+    final int indCorrParsed;
+    if (indCorr is int) {
+      indCorrParsed = indCorr;
+    } else if (indCorr is num) {
+      indCorrParsed = indCorr.toInt();
+    } else {
+      indCorrParsed = int.tryParse(indCorr?.toString() ?? '') ?? 0;
+    }
+
+    final bool esCorrParsed;
+    if (esCorr is bool) {
+      esCorrParsed = esCorr;
+    } else if (esCorr != null) {
+      esCorrParsed = esCorr.toString().toLowerCase() == 'true';
+    } else {
+      esCorrParsed = indSelParsed >= 0 && indSelParsed == indCorrParsed;
+    }
+
     return QuizQuestionResult(
-      numero: json['numero'] as int? ?? 1,
-      pregunta: json['pregunta'] as String? ?? '',
+      numero: numParsed,
+      pregunta: (json['pregunta'] ?? json['question']) as String? ?? '',
       opciones: opcionesRaw.map((e) => e.toString()).toList(),
-      indiceSeleccionado: json['indiceSeleccionado'] as int? ?? -1,
-      indiceCorrecto: json['indiceCorrecto'] as int? ?? 0,
-      esCorrecta: json['esCorrecta'] as bool? ?? false,
-      explicacion: json['explicacion'] as String? ?? '',
+      indiceSeleccionado: indSelParsed,
+      indiceCorrecto: indCorrParsed,
+      esCorrecta: esCorrParsed,
+      explicacion:
+          (json['explicacion'] ?? json['explanation']) as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'numero': numero,
+      'numero_pregunta': numero,
       'pregunta': pregunta,
       'opciones': opciones,
       'indiceSeleccionado': indiceSeleccionado,
+      'indice_seleccionado': indiceSeleccionado,
       'indiceCorrecto': indiceCorrecto,
+      'indice_correcto': indiceCorrecto,
       'esCorrecta': esCorrecta,
+      'es_correcta': esCorrecta,
       'explicacion': explicacion,
     };
   }
@@ -77,15 +126,22 @@ class QuizResult {
   });
 
   factory QuizResult.fromJson(Map<String, dynamic> json) {
-    final respuestasRaw = json['respuestas'] as List<dynamic>? ?? [];
+    final respuestasRaw =
+        (json['respuestas'] ?? json['quiz_respuestas']) as List<dynamic>? ?? [];
+    final listado =
+        respuestasRaw
+            .map((e) => QuizQuestionResult.fromJson(e as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => a.numero.compareTo(b.numero));
+
     return QuizResult(
-      intentoId: json['intentoId'] as String? ?? '',
-      puntaje: json['puntaje'] as int? ?? 0,
-      total: json['total'] as int? ?? 5,
-      porcentaje: json['porcentaje'] as num? ?? 0,
-      respuestas: respuestasRaw
-          .map((e) => QuizQuestionResult.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      intentoId:
+          (json['intentoId'] ?? json['intento_id'] ?? json['id']) as String? ??
+          '',
+      puntaje: (json['puntaje'] as num?)?.toInt() ?? 0,
+      total: (json['total'] ?? json['total_preguntas'] as num?)?.toInt() ?? 5,
+      porcentaje: (json['porcentaje'] as num?) ?? 0,
+      respuestas: listado,
     );
   }
 

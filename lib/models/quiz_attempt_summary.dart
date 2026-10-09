@@ -41,7 +41,14 @@ class QuizAttemptSummary {
   bool get estaCompletado => estado == 'completado';
 
   factory QuizAttemptSummary.fromJson(Map<String, dynamic> json) {
-    final respRaw = json['quiz_respuestas'] as List<dynamic>? ?? [];
+    final respRaw =
+        (json['quiz_respuestas'] ?? json['respuestas']) as List<dynamic>? ?? [];
+    final respuestasList =
+        respRaw
+            .map((r) => QuizQuestionResult.fromJson(r as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => a.numero.compareTo(b.numero));
+
     return QuizAttemptSummary(
       intentoId: json['id']?.toString() ?? '',
       cuentoId: json['cuento_id']?.toString() ?? '',
@@ -61,9 +68,7 @@ class QuizAttemptSummary {
       completedAt: json['completed_at'] != null
           ? DateTime.tryParse(json['completed_at'].toString())
           : null,
-      respuestas: respRaw
-          .map((r) => QuizQuestionResult.fromJson(r as Map<String, dynamic>))
-          .toList(),
+      respuestas: respuestasList,
     );
   }
 }
