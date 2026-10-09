@@ -12,6 +12,7 @@ class QuizView extends StatefulWidget {
   final QuizService quizService;
   final VoidCallback onVolver;
   final VoidCallback? onFinalizado;
+  final QuizResult? resultadoInicial;
 
   const QuizView({
     super.key,
@@ -20,6 +21,7 @@ class QuizView extends StatefulWidget {
     required this.quizService,
     required this.onVolver,
     this.onFinalizado,
+    this.resultadoInicial,
   });
 
   @override
@@ -44,7 +46,13 @@ class _QuizViewState extends State<QuizView> {
   @override
   void initState() {
     super.initState();
-    _iniciarQuiz();
+    if (widget.resultadoInicial != null) {
+      _resultado = widget.resultadoInicial;
+      _intentoId = widget.resultadoInicial!.intentoId;
+      _cargando = false;
+    } else {
+      _iniciarQuiz();
+    }
   }
 
   Future<void> _iniciarQuiz() async {
@@ -169,7 +177,6 @@ class _QuizViewState extends State<QuizView> {
           _resultado = resultado;
           _enviando = false;
         });
-        widget.onFinalizado?.call();
       }
     } catch (e) {
       if (mounted) {
@@ -736,9 +743,7 @@ class _QuizViewState extends State<QuizView> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              esCorrecta
-                                  ? '✓ Correcta'
-                                  : '✗ Respuesta incorrecta',
+                              esCorrecta ? '✓ Correcta' : '✗ Incorrecta',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -868,9 +873,12 @@ class _QuizViewState extends State<QuizView> {
           // Botón final para volver
           Center(
             child: ElevatedButton.icon(
-              onPressed: widget.onVolver,
-              icon: const Icon(Icons.home_rounded),
-              label: const Text('Volver al inicio'),
+              onPressed: () {
+                widget.onFinalizado?.call();
+                widget.onVolver();
+              },
+              icon: const Icon(Icons.auto_stories_rounded),
+              label: const Text('Volver a Mis aventuras'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF39C12),
                 foregroundColor: Colors.white,

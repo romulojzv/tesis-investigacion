@@ -184,6 +184,7 @@ class StoryController {
       personajeOriginal: personajeOriginal,
       esPersonajeNuevo: esNuevo,
       origen: CuentoOrigen.pdf,
+      esModoDibujo: personalizacion.visualMode == CharacterVisualMode.drawing,
       textoFuente: datosPdf.textoExtraido,
       resumenOriginal: datosPdf.resumen,
       escenarioOriginal: datosPdf.escenario,
@@ -696,7 +697,7 @@ class StoryController {
       Uint8List? referenciaBytes;
       Uint8List? referenciaAnteriorBytes;
 
-      if (cuento.origen == CuentoOrigen.dibujo) {
+      if (cuento.esModoDibujo) {
         // En escena 1: usar el dibujo del estudiante como referencia principal.
         referenciaBytes = cuento.referenciaVisualPng;
         // En escenas 2, 3, 4: usar dibujo original + anchor de la escena anterior
@@ -716,16 +717,24 @@ class StoryController {
         }
       }
 
+      // Si es modo dibujo y proviene de PDF (el estudiante dibujó la apariencia del personaje),
+      // la descripción visual para la ilustración NO debe imponer los rasgos físicos del PDF (ej: niña).
+      // Debe representar fielmente el diseño del dibujo del estudiante.
+      final String? descripcionVisualParaImagen =
+          cuento.esModoDibujo && cuento.origen == CuentoOrigen.pdf
+          ? 'Representar a ${cuento.personajePrincipal} utilizando fielmente el diseño del personaje dibujado por el estudiante.'
+          : cuento.descripcionPersonaje;
+
       final solicitud = SolicitudImagenEscena(
         cuentoId: cuento.id,
         numeroEscena: numeroEscena,
         contenidoEscena: escena.contenido,
         nombreProtagonista: cuento.personajePrincipal,
-        descripcionPersonaje: cuento.descripcionPersonaje,
+        descripcionPersonaje: descripcionVisualParaImagen,
         escenario: cuento.escenarioOriginal,
         referenciaVisualBytes: referenciaBytes,
         referenciaAnteriorBytes: referenciaAnteriorBytes,
-        esModoDibujo: cuento.origen == CuentoOrigen.dibujo,
+        esModoDibujo: cuento.esModoDibujo,
       );
 
       final url = await imageService!

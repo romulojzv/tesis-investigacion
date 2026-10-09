@@ -98,6 +98,24 @@ class MockQuizRepository implements QuizRepository {
   Future<List<QuizAttemptSummary>> obtenerResultadosPorDocente() async {
     return resultados;
   }
+
+  @override
+  Future<Map<String, QuizAttemptSummary>> obtenerResumenesQuizPorEstudiante(
+    String estudianteId,
+  ) async {
+    return {for (final r in resultados) r.cuentoId: r};
+  }
+
+  @override
+  Future<QuizAttemptSummary?> obtenerResumenQuizPorCuento(
+    String cuentoId,
+  ) async {
+    try {
+      return resultados.firstWhere((r) => r.cuentoId == cuentoId);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 // ============================================================================
@@ -373,11 +391,11 @@ void main() {
         expect(find.text('Puntaje: 4 de 5'), findsOneWidget);
         expect(find.text('80 % de aciertos'), findsOneWidget);
         expect(find.text('Revisión de respuestas:'), findsOneWidget);
-        expect(find.text('Volver al inicio'), findsOneWidget);
+        expect(find.textContaining('Volver'), findsOneWidget);
 
         // Indicadores visuales de acierto y error
         expect(find.text('✓ Correcta'), findsWidgets);
-        expect(find.text('✗ Respuesta incorrecta'), findsWidgets);
+        expect(find.text('✗ Incorrecta'), findsWidgets);
 
         // Explicación visible tras finalizar
         expect(

@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../models/cuento.dart';
+import '../models/quiz_attempt_summary.dart';
 import '../models/user_profile.dart';
 import '../repositories/cuento_repository.dart';
+import '../repositories/quiz_repository_supabase.dart';
 
 class StudentHomeView extends StatefulWidget {
   final UserProfile perfil;
   final VoidCallback onDibujar;
   final VoidCallback onUsarPdf;
   final ValueChanged<Cuento>? onAbrirCuento;
+  final void Function(Cuento cuento, QuizAttemptSummary? intento)?
+  onVerResultado;
   final VoidCallback onLogout;
   final CuentoRepository cuentoRepository;
+  final QuizRepository? quizRepository;
+  final int tabInicial;
 
   const StudentHomeView({
     super.key,
@@ -18,8 +24,11 @@ class StudentHomeView extends StatefulWidget {
     required this.onDibujar,
     required this.onUsarPdf,
     this.onAbrirCuento,
+    this.onVerResultado,
     required this.onLogout,
     required this.cuentoRepository,
+    this.quizRepository,
+    this.tabInicial = 0,
   });
 
   @override
@@ -27,15 +36,25 @@ class StudentHomeView extends StatefulWidget {
 }
 
 class _StudentHomeViewState extends State<StudentHomeView> {
-  int _tabSeleccionado = 0; // 0 = Nueva aventura, 1 = Mis aventuras
+  late int _tabSeleccionado;
 
   List<Cuento>? _misCuentos;
+  Map<String, QuizAttemptSummary> _quizResumenes = {};
   bool _cargandoCuentos = false;
   String? _errorCuentos;
+  String? _cargandoCuentoId;
 
   @override
   void initState() {
     super.initState();
+    _tabSeleccionado = widget.tabInicial;
+    _cargarMisCuentos();
+  }
+
+  @override
+  void didUpdateWidget(covariant StudentHomeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _tabSeleccionado = widget.tabInicial;
     _cargarMisCuentos();
   }
 
@@ -49,9 +68,19 @@ class _StudentHomeViewState extends State<StudentHomeView> {
       final cuentos = await widget.cuentoRepository.listarCuentosPorEstudiante(
         widget.perfil.id,
       );
+
+      Map<String, QuizAttemptSummary> quizResumenes = {};
+      if (widget.quizRepository != null) {
+        try {
+          quizResumenes = await widget.quizRepository!
+              .obtenerResumenesQuizPorEstudiante(widget.perfil.id);
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           _misCuentos = cuentos;
+          _quizResumenes = quizResumenes;
           _cargandoCuentos = false;
         });
       }
@@ -62,6 +91,54 @@ class _StudentHomeViewState extends State<StudentHomeView> {
           _cargandoCuentos = false;
         });
       }
+    }
+  }
+
+  Future<void> _abrirAventura(Cuento cuentoResumen) async {
+    if (_cargandoCuentoId != null) return;
+
+    setState(() {
+      _cargandoCuentoId = cuentoResumen.id;
+    });
+
+    try {
+      final cuentoCompleto = await widget.cuentoRepository.obtenerCuento(
+        cuentoResumen.id,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _cargandoCuentoId = null;
+      });
+
+      if (cuentoCompleto != null) {
+        if (widget.onAbrirCuento != null) {
+          widget.onAbrirCuento!(cuentoCompleto);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No pudimos cargar esta aventura.'),
+            backgroundColor: Color(0xFFC0392B),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cargandoCuentoId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No pudimos cargar esta aventura.'),
+          backgroundColor: const Color(0xFFC0392B),
+          action: SnackBarAction(
+            label: 'Reintentar',
+            textColor: Colors.white,
+            onPressed: () => _abrirAventura(cuentoResumen),
+          ),
+        ),
+      );
     }
   }
 
@@ -325,44 +402,138 @@ class _StudentHomeViewState extends State<StudentHomeView> {
       itemCount: cuentos.length,
       itemBuilder: (context, index) {
         final cuento = cuentos[index];
+        final estaCargando = _cargandoCuentoId == cuento.id;
+        final intento = _quizResumenes[cuento.id];
+
+        String textoQuiz;
+        Color colorQuiz;
+        IconData iconoQuiz;
+        bool esCompletado = false;
+
+        if (intento == null) {
+          textoQuiz = 'Preguntas pendientes';
+          colorQuiz = const Color(0xFF795548);
+          iconoQuiz = Icons.help_outline_rounded;
+        } else if (intento.estado == 'en_progreso') {
+          textoQuiz = 'Preguntas en progreso';
+          colorQuiz = const Color(0xFFE65100);
+          iconoQuiz = Icons.pending_actions_rounded;
+        } else {
+          esCompletado = true;
+          final puntaje = intento.puntaje ?? 0;
+          final total = intento.totalPreguntas;
+          final porcentaje = intento.porcentaje != null
+              ? (intento.porcentaje is double
+                    ? (intento.porcentaje as double).toStringAsFixed(0)
+                    : intento.porcentaje.toString())
+              : ((puntaje / (total > 0 ? total : 1)) * 100).toStringAsFixed(0);
+          textoQuiz = 'Resultado: $puntaje/$total · $porcentaje %';
+          colorQuiz = const Color(0xFF4E342E);
+          iconoQuiz = Icons.analytics_outlined;
+        }
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 8,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFFFFE0B2),
+                    child: Icon(
+                      cuento.origen == CuentoOrigen.pdf
+                          ? Icons.picture_as_pdf
+                          : Icons.brush,
+                      color: const Color(0xFFF39C12),
+                    ),
+                  ),
+                  title: Text(
+                    cuento.titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      color: Color(0xFF4E342E),
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Protagonista: ${cuento.personajePrincipal} • Origen: ${cuento.origenDatabase.toUpperCase()}',
+                      style: const TextStyle(color: Color(0xFF6D4C41)),
+                    ),
+                  ),
+                  trailing: estaCargando
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Color(0xFFF39C12),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFFF39C12),
+                        ),
+                  onTap: estaCargando ? null : () => _abrirAventura(cuento),
+                ),
+                const Divider(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorQuiz.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: colorQuiz.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(iconoQuiz, size: 16, color: colorQuiz),
+                          const SizedBox(width: 6),
+                          Text(
+                            textoQuiz,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: colorQuiz,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (esCompletado && widget.onVerResultado != null)
+                      TextButton.icon(
+                        onPressed: () =>
+                            widget.onVerResultado!(cuento, intento),
+                        icon: const Icon(Icons.analytics_outlined, size: 17),
+                        label: const Text('Ver mi resultado'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFF39C12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFFFFE0B2),
-              child: Icon(
-                cuento.origen == CuentoOrigen.pdf
-                    ? Icons.picture_as_pdf
-                    : Icons.brush,
-                color: const Color(0xFFF39C12),
-              ),
-            ),
-            title: Text(
-              cuento.titulo,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-                color: Color(0xFF4E342E),
-              ),
-            ),
-            subtitle: Text(
-              'Protagonista: ${cuento.personajePrincipal} • Origen: ${cuento.origenDatabase.toUpperCase()}',
-              style: const TextStyle(color: Color(0xFF6D4C41)),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFFF39C12)),
-            onTap: () {
-              if (widget.onAbrirCuento != null) {
-                widget.onAbrirCuento!(cuento);
-              }
-            },
           ),
         );
       },

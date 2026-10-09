@@ -135,7 +135,15 @@ function construirPromptVisual(params: {
 
   // 2. [SECCIÓN 1] IDENTIDAD DEL PROTAGONISTA — PRESERVAR IDENTIDAD
   const desc = params.descripcionPersonaje?.trim();
-  if (desc && desc.length > 0) {
+  if (params.esModoDibujo && params.tieneReferenciaVisual) {
+    partes.push(
+      `CHARACTER IDENTITY (PRESERVE EXACT IDENTITY): Protagonist name: "${params.personajePrincipal}". ` +
+      `VISUAL SOURCE: Faithfully depict the protagonist using the character design from the student's original drawing. ` +
+      `Strict character continuity across all scenes: preserve the exact same species, form, entity type, silhouette, and colors from the drawing. ` +
+      (desc && desc.length > 0 ? `Context: ${desc}. ` : '') +
+      `Do not replace the drawn character with an arbitrary human or different entity type.`,
+    );
+  } else if (desc && desc.length > 0) {
     partes.push(
       `CHARACTER IDENTITY (PRESERVE EXACT IDENTITY): Protagonist name: "${params.personajePrincipal}". CANONICAL BASE TRAITS: ${desc}. ` +
       `STRICT CHARACTER CONTINUITY: Keep the exact same protagonist across all scenes with the same base visual nature, entity type, body silhouette, structural features, and core color palette. ` +

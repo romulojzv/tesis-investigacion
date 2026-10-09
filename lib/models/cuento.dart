@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:typed_data';
 
 import '../widgets/ilustracion_escena_widget.dart';
@@ -30,6 +32,7 @@ class Cuento {
 
   final List<Escena> escenas;
   final List<DecisionNarrativa> decisiones;
+  final bool? _esModoDibujo;
 
   Cuento({
     required this.id,
@@ -39,6 +42,7 @@ class Cuento {
     this.personajeOriginal,
     this.esPersonajeNuevo = false,
     this.origen = CuentoOrigen.dibujo,
+    bool? esModoDibujo,
     this.textoFuente,
     this.resumenOriginal,
     this.escenarioOriginal,
@@ -51,7 +55,8 @@ class Cuento {
     Uint8List? referenciaVisualPng,
     List<Escena>? escenas,
     List<DecisionNarrativa>? decisiones,
-  }) : personajePrincipal = personajePrincipal.trim().replaceAll(
+  }) : _esModoDibujo = esModoDibujo,
+       personajePrincipal = personajePrincipal.trim().replaceAll(
          RegExp(r'\s+'),
          ' ',
        ),
@@ -60,6 +65,9 @@ class Cuento {
            : Uint8List.fromList(referenciaVisualPng),
        escenas = escenas ?? [],
        decisiones = decisiones ?? [];
+
+  /// Indica si la representación visual del personaje se basa en un dibujo del estudiante.
+  bool get esModoDibujo => _esModoDibujo ?? (origen == CuentoOrigen.dibujo);
 
   /// Indica si el personaje actual es el original renombrado (conserva personalidad y rol original)
   bool get fueRenombrado =>

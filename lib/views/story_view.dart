@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../controllers/story_controller.dart';
 import '../models/cuento.dart';
 import '../models/escena.dart';
+import '../models/quiz_attempt_summary.dart';
 import '../services/image_service.dart';
 import '../services/narracion_service.dart';
 import '../widgets/ilustracion_escena_widget.dart';
@@ -26,6 +27,8 @@ class StoryView extends StatefulWidget {
   final Future<void> Function(Escena escena)? onNarrar;
   final NarracionService? narracionService;
   final bool autoNarrar;
+  final bool modoHistorico;
+  final QuizAttemptSummary? intentoQuiz;
 
   final VoidCallback onSalir;
   final VoidCallback? onIrEvaluacion;
@@ -39,6 +42,8 @@ class StoryView extends StatefulWidget {
     required this.onSalir,
     this.onIrEvaluacion,
     this.autoNarrar = true,
+    this.modoHistorico = false,
+    this.intentoQuiz,
   });
 
   @override
@@ -145,7 +150,9 @@ class _StoryViewState extends State<StoryView> {
     final yaLeida = _escenasLeidas.contains(escena.numero);
 
     // Si hay ImageService y la escena no tiene imagen, iniciar carga asíncrona sin bloquear lectura
-    if (widget.controller.imageService != null &&
+    // En modo histórico: NO regenerar imágenes automáticamente (Requirement T, HISTORY-13, HISTORY-14)
+    if (!widget.modoHistorico &&
+        widget.controller.imageService != null &&
         (escena.imageUrl == null || escena.imageUrl!.trim().isEmpty) &&
         _estadosImagen[escena.numero] != EstadoImagenEscena.error &&
         _estadosImagen[escena.numero] != EstadoImagenEscena.generando) {
@@ -947,7 +954,8 @@ class _StoryViewState extends State<StoryView> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 18, color: Color(0xFF795548)),
             ),
-            if (widget.controller.imageService != null) ...[
+            if (!widget.modoHistorico &&
+                widget.controller.imageService != null) ...[
               const SizedBox(height: 14),
               FilledButton.tonalIcon(
                 onPressed: () => _solicitarGeneracionImagen(),
@@ -993,6 +1001,46 @@ class _StoryViewState extends State<StoryView> {
 
     if (_status == StoryStatus.error) {
       return _buildError();
+    }
+
+    if (widget.modoHistorico) {
+      if (_escenaActual.esFinal) {
+        return _buildFinal();
+      }
+
+      final decision = widget.cuento.decisiones
+          .where((d) => d.numeroEscena == _escenaActual.numero)
+          .firstOrNull;
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3E0),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.history_rounded, color: Color(0xFFE65100)),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  decision != null
+                      ? 'Decisión tomada: "${decision.opcionSeleccionada}"'
+                      : 'Estás leyendo tu aventura guardada.',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6D4C41),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (_escenaActual.esFinal) {
@@ -1175,6 +1223,19 @@ class _StoryViewState extends State<StoryView> {
   }
 
   Widget _buildFinal() {
+    String etiquetaBoton = 'Ir a las preguntas';
+    IconData iconoBoton = Icons.quiz_rounded;
+
+    if (widget.intentoQuiz != null) {
+      if (widget.intentoQuiz!.estado == 'en_progreso') {
+        etiquetaBoton = 'Continuar preguntas';
+        iconoBoton = Icons.pending_actions_rounded;
+      } else if (widget.intentoQuiz!.estado == 'completado') {
+        etiquetaBoton = 'Ver mi resultado';
+        iconoBoton = Icons.analytics_outlined;
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 0, 30, 22),
       child: Container(
@@ -1187,21 +1248,18 @@ class _StoryViewState extends State<StoryView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              '🎉 ¡Has llegado al final '
-              'de esta aventura!',
+              '🎉 ¡Has llegado al final de esta aventura!',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             if (widget.onIrEvaluacion != null) ...[
               const SizedBox(width: 25),
-
               FilledButton.icon(
                 onPressed: () {
                   _detenerNarracion();
                   widget.onIrEvaluacion?.call();
                 },
-                icon: const Icon(Icons.quiz_rounded),
-                label: const Text('Ir a las preguntas'),
+                icon: Icon(iconoBoton),
+                label: Text(etiquetaBoton),
               ),
             ],
           ],

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/quiz_attempt_summary.dart';
 import '../models/user_profile.dart';
 import '../repositories/quiz_repository_supabase.dart';
+import '../utils/date_formatter.dart';
 
 class _UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -720,8 +721,7 @@ class _TeacherHomeViewState extends State<TeacherHomeView> {
 
   Widget _buildResultadoQuizCard(QuizAttemptSummary intento) {
     final fecha = intento.completedAt ?? intento.createdAt;
-    final fechaStr =
-        '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year} ${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
+    final fechaStr = DateFormatter.formatearFechaHoraLocal(fecha);
     final puntaje = intento.puntaje ?? 0;
     final total = intento.totalPreguntas;
     final porcentaje = intento.porcentaje != null
@@ -1209,4 +1209,14 @@ class _EmptyQuizRepository implements QuizRepository {
   @override
   Future<List<QuizAttemptSummary>> obtenerResultadosPorDocente() async =>
       const [];
+
+  @override
+  Future<Map<String, QuizAttemptSummary>> obtenerResumenesQuizPorEstudiante(
+    String estudianteId,
+  ) async => const {};
+
+  @override
+  Future<QuizAttemptSummary?> obtenerResumenQuizPorCuento(
+    String cuentoId,
+  ) async => null;
 }

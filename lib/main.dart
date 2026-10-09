@@ -24,6 +24,8 @@ import 'services/narrativa_service.dart';
 import 'models/user_profile.dart';
 import 'models/quiz_question.dart';
 import 'models/quiz_result.dart';
+import 'models/quiz_attempt_summary.dart';
+import 'repositories/quiz_repository_supabase.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_quiz_service.dart';
 import 'views/auth_gate.dart';
@@ -154,6 +156,7 @@ class CuentosMagicosApp extends StatelessWidget {
   final NarrativaService? narrativaService;
   final DocumentService? documentService;
   final QuizService? quizService;
+  final QuizRepository? quizRepository;
   final Future<void>? initializationFuture;
 
   const CuentosMagicosApp({
@@ -165,6 +168,7 @@ class CuentosMagicosApp extends StatelessWidget {
     this.narrativaService,
     this.documentService,
     this.quizService,
+    this.quizRepository,
     this.initializationFuture,
   });
 
@@ -178,6 +182,7 @@ class CuentosMagicosApp extends StatelessWidget {
       narrativaService: narrativaService,
       documentService: documentService,
       quizService: quizService,
+      quizRepository: quizRepository,
     );
 
     return MaterialApp(
@@ -304,6 +309,22 @@ class _FallbackQuizService implements QuizService {
   }
 }
 
+class _FallbackQuizRepository implements QuizRepository {
+  @override
+  Future<List<QuizAttemptSummary>> obtenerResultadosPorDocente() async =>
+      const [];
+
+  @override
+  Future<Map<String, QuizAttemptSummary>> obtenerResumenesQuizPorEstudiante(
+    String estudianteId,
+  ) async => const {};
+
+  @override
+  Future<QuizAttemptSummary?> obtenerResumenQuizPorCuento(
+    String cuentoId,
+  ) async => null;
+}
+
 class _HomeRouter extends StatefulWidget {
   final AuthService? authService;
   final CuentoRepository? cuentoRepository;
@@ -312,6 +333,7 @@ class _HomeRouter extends StatefulWidget {
   final NarrativaService? narrativaService;
   final DocumentService? documentService;
   final QuizService? quizService;
+  final QuizRepository? quizRepository;
 
   const _HomeRouter({
     this.authService,
@@ -321,6 +343,7 @@ class _HomeRouter extends StatefulWidget {
     this.narrativaService,
     this.documentService,
     this.quizService,
+    this.quizRepository,
   });
 
   @override
@@ -345,6 +368,10 @@ class _HomeRouterState extends State<_HomeRouter> {
   bool _procesandoPdf = false;
   bool _creandoCuento = false;
 
+  bool _esModoHistorico = false;
+  int _studentHomeTab = 0;
+  QuizAttemptSummary? _intentoQuizActual;
+
   late final AiService _aiService;
 
   late final NarrativaService _narrativaService;
@@ -358,6 +385,8 @@ class _HomeRouterState extends State<_HomeRouter> {
   late final AuthService _authService;
 
   late final QuizService _quizService;
+
+  late final QuizRepository _quizRepository;
 
   @override
   void initState() {
@@ -402,15 +431,23 @@ class _HomeRouterState extends State<_HomeRouter> {
         (client != null
             ? SupabaseQuizService(client: client)
             : _FallbackQuizService());
+    _quizRepository =
+        widget.quizRepository ??
+        (client != null
+            ? QuizRepositorySupabase(client: client)
+            : _FallbackQuizRepository());
   }
 
   // =========================================================
   // INICIO
   // =========================================================
 
-  void _irInicio() {
+  void _irInicio({int tab = 0}) {
     setState(() {
       _pantalla = AppScreen.home;
+      _studentHomeTab = tab;
+      _esModoHistorico = false;
+      _intentoQuizActual = null;
 
       _cuento = null;
 
@@ -887,13 +924,17 @@ class _HomeRouterState extends State<_HomeRouter> {
         return StoryView(
           cuento: cuento,
           controller: _storyController,
-          onSalir: _irInicio,
+          modoHistorico: _esModoHistorico,
+          intentoQuiz: _intentoQuizActual,
+          onSalir: () => _irInicio(tab: _esModoHistorico ? 1 : 0),
           onNarrar: _narrarDemo,
           onIrEvaluacion: () async {
-            try {
-              await _cuentoRepository.guardarCuento(cuento);
-            } catch (e) {
-              debugPrint('Aviso guardando cuento previo al quiz: $e');
+            if (!_esModoHistorico) {
+              try {
+                await _cuentoRepository.guardarCuento(cuento);
+              } catch (e) {
+                debugPrint('Aviso guardando cuento previo al quiz: $e');
+              }
             }
             if (mounted) {
               setState(() {
@@ -918,8 +959,8 @@ class _HomeRouterState extends State<_HomeRouter> {
           cuentoId: cuento.id,
           tituloCuento: cuento.titulo,
           quizService: _quizService,
-          onVolver: _irInicio,
-          onFinalizado: _irInicio,
+          onVolver: () => _irInicio(tab: 1),
+          onFinalizado: () => _irInicio(tab: 1),
         );
 
       // =====================================================
@@ -935,6 +976,8 @@ class _HomeRouterState extends State<_HomeRouter> {
     return StudentHomeView(
       perfil: perfil,
       cuentoRepository: _cuentoRepository,
+      quizRepository: _quizRepository,
+      tabInicial: _studentHomeTab,
       onDibujar: () {
         setState(() {
           _dibujoDesdePdf = false;
@@ -947,10 +990,27 @@ class _HomeRouterState extends State<_HomeRouter> {
           _pantalla = AppScreen.document;
         });
       },
-      onAbrirCuento: (cuento) {
+      onAbrirCuento: (cuento) async {
+        QuizAttemptSummary? summary;
+        try {
+          summary = await _quizRepository.obtenerResumenQuizPorCuento(
+            cuento.id,
+          );
+        } catch (_) {}
+        if (!mounted) return;
         setState(() {
           _cuento = cuento;
+          _esModoHistorico = true;
+          _intentoQuizActual = summary;
           _pantalla = AppScreen.story;
+        });
+      },
+      onVerResultado: (cuento, intento) {
+        setState(() {
+          _cuento = cuento;
+          _esModoHistorico = true;
+          _intentoQuizActual = intento;
+          _pantalla = AppScreen.quiz;
         });
       },
       onLogout: () async {
