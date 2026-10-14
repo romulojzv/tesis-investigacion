@@ -19,6 +19,8 @@ build/
 *.log
 *.tmp
 *.local.json
+config_staging.json
+config_prod.json
 
 # Windows
 Thumbs.db
