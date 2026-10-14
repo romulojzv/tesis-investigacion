@@ -32,6 +32,11 @@ BEGIN
     RAISE EXCEPTION 'Intento no autorizado' USING ERRCODE='42501';
   END IF;
 
+  -- Defensa en profundidad: si hay contexto de usuario activo, verificar coincidencia con auth.uid()
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_estudiante_id THEN
+    RAISE EXCEPTION 'Intento no autorizado' USING ERRCODE='42501';
+  END IF;
+
   SELECT * INTO pregunta FROM public.quiz_respuestas
     WHERE intento_id = p_intento_id AND numero_pregunta = p_numero FOR UPDATE;
   IF NOT FOUND THEN

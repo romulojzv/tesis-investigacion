@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tesis_investigacion/models/cuento.dart';
@@ -73,8 +74,12 @@ void main() {
 
       final pdfBytes = await PdfExportService().generarPdf(cuento);
       expect(pdfBytes, isNotEmpty);
-      // Validar firma de archivo PDF (%PDF = [0x25, 0x50, 0x44, 0x46])
       expect(pdfBytes.take(4).toList(), [37, 80, 68, 70]);
+
+      // Guardar en disco para verificación en Windows 11
+      final outDir = Directory('build');
+      if (!outDir.existsSync()) outDir.createSync(recursive: true);
+      File('build/pdf_export_sin_imagenes.pdf').writeAsBytesSync(pdfBytes);
     });
 
     test('Genera PDF incluyendo portada e ilustraciones de escenas válidas', () async {
@@ -106,6 +111,11 @@ void main() {
       final pdfBytes = await PdfExportService().generarPdf(cuento);
       expect(pdfBytes, isNotEmpty);
       expect(pdfBytes.take(4).toList(), [37, 80, 68, 70]);
+
+      // Guardar en disco para verificación en Windows 11
+      final outDir = Directory('build');
+      if (!outDir.existsSync()) outDir.createSync(recursive: true);
+      File('build/pdf_export_con_imagenes.pdf').writeAsBytesSync(pdfBytes);
     });
 
     test('Tolerancia a fallos: genera PDF aun con imagen corrupta o data-uri inválido', () async {

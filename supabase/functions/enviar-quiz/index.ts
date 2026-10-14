@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
     // 6. Cargar preguntas guardadas desde el servidor para corregir
     const { data: preguntasGuardadas, error: errPreguntas } = await serviceClient
       .from('quiz_respuestas')
-      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion, nivel_comprension')
+      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, indice_seleccionado, es_correcta, explicacion, nivel_comprension')
       .eq('intento_id', intento.id)
       .order('numero_pregunta', { ascending: true });
 
@@ -182,31 +182,49 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 7. Corrección en el servidor (cero confianza en el cliente)
+    // 7. Corrección en el servidor (inmutabilidad de respuestas ya confirmadas)
     let puntaje = 0;
     const resultadoPreguntas = [];
 
     for (let i = 0; i < 5; i++) {
       const preg = preguntasGuardadas[i];
       const resp = respuestasValidadas.find((r) => r.numero === preg.numero_pregunta);
-      const indiceSeleccionado = resp ? resp.indiceSeleccionado : -1;
-      const esCorrecta = indiceSeleccionado === preg.indice_correcto;
+
+      let indiceSeleccionado: number;
+      let esCorrecta: boolean;
+
+      if (preg.indice_seleccionado !== null && preg.indice_seleccionado !== undefined) {
+        // La pregunta ya fue confirmada previamente: es inmutable.
+        if (resp && resp.indiceSeleccionado !== preg.indice_seleccionado) {
+          return new Response(
+            JSON.stringify({
+              error: `La pregunta ${preg.numero_pregunta} ya fue confirmada con otra respuesta y no puede modificarse.`,
+            }),
+            { status: 409, headers: jsonHeaders },
+          );
+        }
+        indiceSeleccionado = preg.indice_seleccionado;
+        esCorrecta = preg.es_correcta === true;
+      } else {
+        indiceSeleccionado = resp ? resp.indiceSeleccionado : -1;
+        esCorrecta = indiceSeleccionado === preg.indice_correcto;
+
+        // Actualizar selección en DB solo si no estaba confirmada
+        const { error: errUpdResp } = await serviceClient
+          .from('quiz_respuestas')
+          .update({
+            indice_seleccionado: indiceSeleccionado,
+            es_correcta: esCorrecta,
+          })
+          .eq('id', preg.id);
+
+        if (errUpdResp) {
+          console.error('Error actualizando respuesta individual:', errUpdResp);
+        }
+      }
 
       if (esCorrecta) {
         puntaje++;
-      }
-
-      // Actualizar selección en DB
-      const { error: errUpdResp } = await serviceClient
-        .from('quiz_respuestas')
-        .update({
-          indice_seleccionado: indiceSeleccionado,
-          es_correcta: esCorrecta,
-        })
-        .eq('id', preg.id);
-
-      if (errUpdResp) {
-        console.error('Error actualizando respuesta individual:', errUpdResp);
       }
 
       resultadoPreguntas.push({
@@ -224,7 +242,7 @@ Deno.serve(async (req) => {
     const porcentaje = Math.round((puntaje / 5) * 100);
     const completedAt = new Date().toISOString();
 
-    // 8. Actualizar intento a 'completado'
+    // 8. Actualizar intento a 'completado' solo si continúa 'en_progreso'
     const { error: errUpdIntento } = await serviceClient
       .from('quiz_intentos')
       .update({
@@ -233,7 +251,8 @@ Deno.serve(async (req) => {
         porcentaje,
         completed_at: completedAt,
       })
-      .eq('id', intento.id);
+      .eq('id', intento.id)
+      .eq('estado', 'en_progreso');
 
     if (errUpdIntento) {
       console.error('Error completando intento en quiz_intentos:', errUpdIntento);
