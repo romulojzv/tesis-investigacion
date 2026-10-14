@@ -45,7 +45,8 @@ class QuizRepositorySupabase implements QuizRepository {
               indice_seleccionado,
               indice_correcto,
               es_correcta,
-              explicacion
+              explicacion,
+              nivel_comprension
             )
           ''')
           .eq('estado', 'completado')

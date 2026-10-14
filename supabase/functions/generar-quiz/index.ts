@@ -27,6 +27,7 @@ export interface PreguntaGeminiRaw {
   opciones: string[];
   indiceCorrecto: number;
   explicacion: string;
+  nivelComprension: string;
 }
 
 export function validarEstructuraPreguntas(preguntas: unknown): PreguntaGeminiRaw[] | null {
@@ -64,12 +65,22 @@ export function validarEstructuraPreguntas(preguntas: unknown): PreguntaGeminiRa
     const explicacion = typeof item.explicacion === 'string' ? item.explicacion.trim() : '';
     if (explicacion.length < 5) return null;
 
+    const nivelComprension = typeof item.nivelComprension === 'string'
+      ? item.nivelComprension.trim()
+      : '';
+    const nivelesExigidos = [
+      'literal', 'literal', 'inferencial', 'inferencial', 'critico_reflexivo',
+    ];
+    // La etiqueta la declara el generador y el servidor verifica la distribución.
+    if (nivelComprension !== nivelesExigidos[i]) return null;
+
     resultado.push({
       numero: i + 1,
       pregunta,
       opciones: opcionesLimpia,
       indiceCorrecto,
       explicacion,
+      nivelComprension,
     });
   }
 
@@ -112,11 +123,11 @@ Tu tarea es generar EXACTAMENTE CINCO (5) preguntas de opción múltiple para ev
 REGLAS PEDAGÓGICAS ESTRICTAS:
 1. Basado EXCLUSIVAMENTE en el cuento: Las preguntas deben basarse única y exclusivamente en los acontecimientos, personajes, decisiones y desenlace del camino recorrido por el estudiante. NO inventes sucesos ajenos ni preguntes por hechos que no ocurrieron.
 2. Nivel primaria: Vocabulario claro, oraciones comprensibles, sin ambigüedades, sin preguntas tramposas y sin dobles negaciones.
-3. Variedad de tipos de pregunta (distribución deseada):
-   - Preguntas 1 y 2: Comprensión literal (detalles explícitos, lugares, objetos o personajes encontrados).
-   - Pregunta 3: Secuencia temporal o causa/efecto (qué ocurrió después de cierto hecho, o por qué sucedió algo).
-   - Pregunta 4: Inferencia sencilla (cómo se sentía un personaje, intenciones evidentes o lección de la aventura).
-   - Pregunta 5: Decisión, acción o desenlace (relacionada con las decisiones tomadas por el protagonista o cómo se resolvió el conflicto final).
+3. Niveles obligatorios y verificables (campo nivelComprension):
+   - Preguntas 1 y 2: nivelComprension="literal". Respuesta explícita en la historia.
+   - Preguntas 3 y 4: nivelComprension="inferencial". Inferir causa, intención o consecuencia con pistas del texto.
+   - Pregunta 5: nivelComprension="critico_reflexivo". Valorar una decisión del personaje usando evidencia de la historia y una sola alternativa objetivamente mejor.
+   Está prohibido inventar hechos o evaluar opiniones personales como correctas sin evidencia.
 4. Opciones de respuesta:
    - Exactamente cuatro (4) alternativas por pregunta.
    - Exactamente UNA alternativa correcta objetiva.
@@ -164,8 +175,9 @@ Devuelve estrictamente un JSON con la estructura solicitada.
                 },
                 indiceCorrecto: { type: 'INTEGER', description: 'Índice de la opción correcta (0 a 3)' },
                 explicacion: { type: 'STRING', description: 'Explicación de la respuesta correcta' },
+                nivelComprension: { type: 'STRING', enum: ['literal', 'inferencial', 'critico_reflexivo'], description: 'Nivel de comprensión lectora' },
               },
-              required: ['numero', 'pregunta', 'opciones', 'indiceCorrecto', 'explicacion'],
+              required: ['numero', 'pregunta', 'opciones', 'indiceCorrecto', 'explicacion', 'nivelComprension'],
             },
           },
         },
@@ -316,7 +328,7 @@ Deno.serve(async (req) => {
       if (intentoExistente.estado === 'en_progreso') {
         const { data: respuestasGuardadas, error: errResp } = await serviceClient
           .from('quiz_respuestas')
-          .select('numero_pregunta, pregunta, opciones')
+          .select('numero_pregunta, pregunta, opciones, nivel_comprension, indice_seleccionado, indice_correcto, es_correcta, explicacion')
           .eq('intento_id', intentoExistente.id)
           .order('numero_pregunta', { ascending: true });
 
@@ -325,11 +337,25 @@ Deno.serve(async (req) => {
             JSON.stringify({
               intentoId: intentoExistente.id,
               estado: 'en_progreso',
-              preguntas: respuestasGuardadas.map((r: { numero_pregunta: number; pregunta: string; opciones: string[] }) => ({
+              preguntas: respuestasGuardadas.map((r) => ({
                 numero: r.numero_pregunta,
                 pregunta: r.pregunta,
                 opciones: r.opciones,
+                nivelComprension: r.nivel_comprension,
               })),
+              // Solo se revelan soluciones de las preguntas ya contestadas
+              retroalimentaciones: respuestasGuardadas
+                .filter((r) => r.indice_seleccionado !== null)
+                .map((r) => ({
+                  numero: r.numero_pregunta,
+                  pregunta: r.pregunta,
+                  opciones: r.opciones,
+                  nivelComprension: r.nivel_comprension,
+                  indiceSeleccionado: r.indice_seleccionado,
+                  indiceCorrecto: r.indice_correcto,
+                  esCorrecta: r.es_correcta,
+                  explicacion: r.explicacion,
+                })),
             }),
             { status: 200, headers: jsonHeaders },
           );
@@ -337,7 +363,7 @@ Deno.serve(async (req) => {
       } else if (intentoExistente.estado === 'completado') {
         const { data: respuestasGuardadas } = await serviceClient
           .from('quiz_respuestas')
-          .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion')
+          .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion, nivel_comprension')
           .eq('intento_id', intentoExistente.id)
           .order('numero_pregunta', { ascending: true });
 
@@ -356,6 +382,7 @@ Deno.serve(async (req) => {
               indice_correcto: number;
               es_correcta: boolean | null;
               explicacion: string;
+              nivel_comprension: string;
             }) => ({
               numero: r.numero_pregunta,
               pregunta: r.pregunta,
@@ -364,6 +391,7 @@ Deno.serve(async (req) => {
               indiceCorrecto: r.indice_correcto,
               esCorrecta: r.es_correcta,
               explicacion: r.explicacion,
+              nivelComprension: r.nivel_comprension,
             })),
           }),
           { status: 200, headers: jsonHeaders },
@@ -444,6 +472,7 @@ Deno.serve(async (req) => {
       opciones: p.opciones,
       indice_correcto: p.indiceCorrecto,
       explicacion: p.explicacion,
+      nivel_comprension: p.nivelComprension,
     }));
 
     const { error: errInsertRespuestas } = await serviceClient
@@ -465,6 +494,7 @@ Deno.serve(async (req) => {
       numero: p.numero,
       pregunta: p.pregunta,
       opciones: p.opciones,
+      nivelComprension: p.nivelComprension,
     }));
 
     return new Response(

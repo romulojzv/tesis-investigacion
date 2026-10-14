@@ -9,6 +9,7 @@ class QuizQuestionResult {
   final int indiceCorrecto;
   final bool esCorrecta;
   final String explicacion;
+  final String nivelComprension;
 
   const QuizQuestionResult({
     required this.numero,
@@ -18,6 +19,7 @@ class QuizQuestionResult {
     required this.indiceCorrecto,
     required this.esCorrecta,
     required this.explicacion,
+    this.nivelComprension = 'sin_clasificar',
   });
 
   String get opcionSeleccionadaTexto {
@@ -89,6 +91,10 @@ class QuizQuestionResult {
       esCorrecta: esCorrParsed,
       explicacion:
           (json['explicacion'] ?? json['explanation']) as String? ?? '',
+      nivelComprension: (json['nivelComprension'] ??
+              json['nivel_comprension'] ??
+              'sin_clasificar')
+          .toString(),
     );
   }
 
@@ -105,6 +111,8 @@ class QuizQuestionResult {
       'esCorrecta': esCorrecta,
       'es_correcta': esCorrecta,
       'explicacion': explicacion,
+      'nivelComprension': nivelComprension,
+      'nivel_comprension': nivelComprension,
     };
   }
 }

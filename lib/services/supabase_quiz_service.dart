@@ -12,12 +12,14 @@ class QuizStartResponse {
   final String estado; // 'en_progreso' | 'completado'
   final List<QuizQuestion> preguntas;
   final QuizResult? resultadoExistente;
+  final List<QuizQuestionResult> retroalimentaciones;
 
   const QuizStartResponse({
     required this.intentoId,
     required this.estado,
     this.preguntas = const [],
     this.resultadoExistente,
+    this.retroalimentaciones = const [],
   });
 
   bool get estaCompletado => estado == 'completado';
@@ -32,8 +34,17 @@ abstract class QuizService {
   });
 }
 
+/// Calificación y retroalimentación inmediata por pregunta con persistencia en el servidor.
+abstract class QuizFeedbackService {
+  Future<QuizQuestionResult> responderPregunta({
+    required String intentoId,
+    required int numero,
+    required int indiceSeleccionado,
+  });
+}
+
 /// Implementación de producción contra Edge Functions de Supabase con JWT y RLS.
-class SupabaseQuizService implements QuizService {
+class SupabaseQuizService implements QuizService, QuizFeedbackService {
   final SupabaseClient client;
 
   SupabaseQuizService({SupabaseClient? client})
@@ -112,10 +123,17 @@ class SupabaseQuizService implements QuizService {
           .map((p) => QuizQuestion.fromJson(p as Map<String, dynamic>))
           .toList();
 
+      final retroalimentacionesRaw =
+          json['retroalimentaciones'] as List<dynamic>? ?? [];
+      final retroalimentaciones = retroalimentacionesRaw
+          .map((e) => QuizQuestionResult.fromJson(e as Map<String, dynamic>))
+          .toList();
+
       return QuizStartResponse(
         intentoId: intentoId,
         estado: 'en_progreso',
         preguntas: preguntas,
+        retroalimentaciones: retroalimentaciones,
       );
     } on FunctionException catch (fe) {
       debugPrint(
@@ -141,6 +159,61 @@ class SupabaseQuizService implements QuizService {
       if (e is StateError) rethrow;
       debugPrint('[SupabaseQuizService] Error invocando generar-quiz: $e');
       throw StateError('Fallo al obtener el quiz de comprensión: $e');
+    }
+  }
+
+  @override
+  Future<QuizQuestionResult> responderPregunta({
+    required String intentoId,
+    required int numero,
+    required int indiceSeleccionado,
+  }) async {
+    if (numero < 1 ||
+        numero > 5 ||
+        indiceSeleccionado < 0 ||
+        indiceSeleccionado > 3) {
+      throw ArgumentError('Pregunta o alternativa fuera de rango.');
+    }
+
+    final token = _obtenerTokenSesionActiva();
+    try {
+      final response = await client.functions
+          .invoke(
+            'responder-pregunta',
+            headers: {'Authorization': 'Bearer $token'},
+            body: {
+              'intentoId': intentoId,
+              'numero': numero,
+              'indiceSeleccionado': indiceSeleccionado,
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return QuizQuestionResult.fromJson(_validarRespuesta(response.data));
+    } on FunctionException catch (fe) {
+      debugPrint(
+        '[SupabaseQuizService] Error HTTP ${fe.status} en responder-pregunta: ${fe.details}',
+      );
+      if (fe.status == 401) {
+        throw StateError(
+          'Sesión no autorizada o expirada. Inicie sesión nuevamente.',
+        );
+      }
+      if (fe.status == 403) {
+        throw StateError(
+          'Acceso denegado. El intento no pertenece al estudiante autenticado.',
+        );
+      }
+      final detalle = fe.details is Map
+          ? fe.details['error']?.toString()
+          : null;
+      throw StateError(
+        detalle ??
+            'No fue posible comprobar la respuesta (HTTP ${fe.status}).',
+      );
+    } catch (e) {
+      if (e is StateError) rethrow;
+      throw StateError('Error al registrar la respuesta: $e');
     }
   }
 

@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/pdf_export_service.dart';
 
 import '../controllers/story_controller.dart';
 import '../models/cuento.dart';
@@ -1222,6 +1226,68 @@ class _StoryViewState extends State<StoryView> {
     );
   }
 
+  bool _exportandoPdf = false;
+
+  Future<void> _exportarPdfFinal() async {
+    if (_exportandoPdf || widget.cuento.escenas.isEmpty) return;
+    final ultimaEscena = widget.cuento.escenas.last;
+    if (!ultimaEscena.esFinal) return;
+
+    setState(() => _exportandoPdf = true);
+    try {
+      final bytes = await PdfExportService().generarPdf(widget.cuento);
+      if (bytes.isEmpty) {
+        throw StateError('El archivo PDF generado está vacío.');
+      }
+
+      final nombreSugerido =
+          'cuento_${widget.cuento.id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf';
+
+      final Uri? uriSeleccionado = await FilePicker.saveFile(
+        dialogTitle: 'Guardar cuento interactivo en PDF',
+        fileName: nombreSugerido,
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+
+      if (!mounted) return;
+
+      if (uriSeleccionado != null) {
+        try {
+          if (uriSeleccionado.scheme == 'file') {
+            final file = File(uriSeleccionado.toFilePath());
+            if (!await file.exists() || await file.length() == 0) {
+              await file.writeAsBytes(bytes, flush: true);
+            }
+          }
+        } catch (_) {}
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              backgroundColor: Color(0xFF2E7D32),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo guardar el PDF: $e'),
+            backgroundColor: const Color(0xFFC62828),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportandoPdf = false);
+    }
+  }
+
   Widget _buildFinal() {
     String etiquetaBoton = 'Ir a las preguntas';
     IconData iconoBoton = Icons.quiz_rounded;
@@ -1244,15 +1310,42 @@ class _StoryViewState extends State<StoryView> {
           color: const Color(0xFFE8F5E9),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 12,
           children: [
             const Text(
               '🎉 ¡Has llegado al final de esta aventura!',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            OutlinedButton.icon(
+              onPressed: _exportandoPdf ? null : _exportarPdfFinal,
+              icon: _exportandoPdf
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.picture_as_pdf_rounded,
+                      color: Color(0xFFD32F2F),
+                    ),
+              label: Text(_exportandoPdf ? 'Exportando...' : 'Exportar PDF'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF37474F),
+                side: const BorderSide(color: Color(0xFFB0BEC5)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
             if (widget.onIrEvaluacion != null) ...[
-              const SizedBox(width: 25),
               FilledButton.icon(
                 onPressed: () {
                   _detenerNarracion();
@@ -1260,6 +1353,15 @@ class _StoryViewState extends State<StoryView> {
                 },
                 icon: Icon(iconoBoton),
                 label: Text(etiquetaBoton),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ],
           ],

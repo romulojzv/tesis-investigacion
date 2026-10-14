@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     if (intento.estado === 'completado') {
       const { data: respuestasCompletadas, error: errC } = await serviceClient
         .from('quiz_respuestas')
-        .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion')
+        .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion, nivel_comprension')
         .eq('intento_id', intento.id)
         .order('numero_pregunta', { ascending: true });
 
@@ -150,6 +150,7 @@ Deno.serve(async (req) => {
               indice_correcto: number;
               es_correcta: boolean | null;
               explicacion: string;
+              nivel_comprension: string;
             }) => ({
               numero: r.numero_pregunta,
               pregunta: r.pregunta,
@@ -158,6 +159,7 @@ Deno.serve(async (req) => {
               indiceCorrecto: r.indice_correcto,
               esCorrecta: r.es_correcta,
               explicacion: r.explicacion,
+              nivelComprension: r.nivel_comprension,
             })),
           }),
           { status: 200, headers: jsonHeaders },
@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
     // 6. Cargar preguntas guardadas desde el servidor para corregir
     const { data: preguntasGuardadas, error: errPreguntas } = await serviceClient
       .from('quiz_respuestas')
-      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion')
+      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion, nivel_comprension')
       .eq('intento_id', intento.id)
       .order('numero_pregunta', { ascending: true });
 
@@ -215,6 +217,7 @@ Deno.serve(async (req) => {
         indiceCorrecto: preg.indice_correcto,
         esCorrecta,
         explicacion: preg.explicacion,
+        nivelComprension: preg.nivel_comprension,
       });
     }
 

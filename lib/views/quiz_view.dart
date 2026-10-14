@@ -40,6 +40,9 @@ class _QuizViewState extends State<QuizView> {
   // Mapa de selecciones del estudiante: {numeroPregunta: indiceOpcionSeleccionada}
   final Map<int, int> _selecciones = {};
 
+  // Respuestas confirmadas con retroalimentación inmediata: {numeroPregunta: QuizQuestionResult}
+  final Map<int, QuizQuestionResult> _retroalimentaciones = {};
+
   // Resultado recibido del servidor
   QuizResult? _resultado;
 
@@ -72,6 +75,17 @@ class _QuizViewState extends State<QuizView> {
             _resultado = respuesta.resultadoExistente;
           } else {
             _preguntas = respuesta.preguntas;
+            _retroalimentaciones.clear();
+            _selecciones.clear();
+            for (final r in respuesta.retroalimentaciones) {
+              _retroalimentaciones[r.numero] = r;
+              _selecciones[r.numero] = r.indiceSeleccionado;
+            }
+            final primerPendiente = _preguntas.indexWhere(
+              (p) => !_retroalimentaciones.containsKey(p.numero),
+            );
+            _indiceActual =
+                primerPendiente < 0 ? _preguntas.length - 1 : primerPendiente;
           }
           _cargando = false;
         });
@@ -94,7 +108,11 @@ class _QuizViewState extends State<QuizView> {
   }
 
   void _seleccionarOpcion(int indiceOpcion) {
-    if (_preguntas.isEmpty || _enviando) return;
+    if (_preguntas.isEmpty ||
+        _enviando ||
+        _retroalimentaciones.containsKey(_preguntas[_indiceActual].numero)) {
+      return;
+    }
     final preguntaActual = _preguntas[_indiceActual];
     setState(() {
       _selecciones[preguntaActual.numero] = indiceOpcion;
@@ -109,8 +127,37 @@ class _QuizViewState extends State<QuizView> {
     }
   }
 
-  void _irSiguiente() {
-    if (_preguntas.isEmpty) return;
+  Future<void> _confirmarRespuestaActual() async {
+    final pregunta = _preguntas[_indiceActual];
+    final indice = _selecciones[pregunta.numero];
+    if (indice == null || _intentoId == null) return;
+    setState(() => _enviando = true);
+    try {
+      final r = await (widget.quizService as QuizFeedbackService).responderPregunta(
+        intentoId: _intentoId!,
+        numero: pregunta.numero,
+        indiceSeleccionado: indice,
+      );
+      if (!mounted) return;
+      setState(() {
+        _retroalimentaciones[pregunta.numero] = r;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo comprobar la respuesta: $e'),
+            backgroundColor: const Color(0xFFC62828),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  Future<void> _irSiguiente() async {
+    if (_preguntas.isEmpty || _enviando) return;
     final preguntaActual = _preguntas[_indiceActual];
     if (!_selecciones.containsKey(preguntaActual.numero)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,6 +170,12 @@ class _QuizViewState extends State<QuizView> {
       return;
     }
 
+    if (widget.quizService is QuizFeedbackService &&
+        !_retroalimentaciones.containsKey(preguntaActual.numero)) {
+      await _confirmarRespuestaActual();
+      return;
+    }
+
     if (_indiceActual < _preguntas.length - 1) {
       setState(() {
         _indiceActual++;
@@ -132,6 +185,46 @@ class _QuizViewState extends State<QuizView> {
 
   Future<void> _finalizarQuiz() async {
     final preguntaActual = _preguntas[_indiceActual];
+    if (widget.quizService is QuizFeedbackService) {
+      if (!_selecciones.containsKey(preguntaActual.numero)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selecciona una respuesta antes de continuar.'),
+            backgroundColor: Color(0xFFE65100),
+          ),
+        );
+        return;
+      }
+      if (!_retroalimentaciones.containsKey(preguntaActual.numero)) {
+        await _confirmarRespuestaActual();
+        return;
+      }
+      setState(() => _enviando = true);
+      try {
+        final estado = await widget.quizService.generarQuiz(widget.cuentoId);
+        if (!estado.estaCompletado || estado.resultadoExistente == null) {
+          throw StateError('El cuestionario todavía tiene respuestas pendientes.');
+        }
+        if (mounted) {
+          setState(() {
+            _resultado = estado.resultadoExistente;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se pudo obtener el resultado: $e'),
+              backgroundColor: const Color(0xFFC62828),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _enviando = false);
+      }
+      return;
+    }
+
     if (!_selecciones.containsKey(preguntaActual.numero)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -370,6 +463,30 @@ class _QuizViewState extends State<QuizView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Nivel de comprensión lectora (RF-22)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFEBE9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Nivel: ${_nombreNivel(pregunta.nivelComprension)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF5D4037),
+                      ),
+                    ),
+                  ),
+                ),
+
                 // Tarjeta de la pregunta
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -406,30 +523,62 @@ class _QuizViewState extends State<QuizView> {
                   final letra = String.fromCharCode(65 + index); // A, B, C, D
                   final textoOpcion = pregunta.opciones[index];
                   final estaSeleccionada = seleccionActual == index;
+                  final retro = _retroalimentaciones[pregunta.numero];
+                  final yaConfirmada = retro != null;
+                  final esOpcionCorrecta =
+                      yaConfirmada && index == retro.indiceCorrecto;
+                  final esOpcionSeleccionadaErronea =
+                      yaConfirmada && estaSeleccionada && !retro.esCorrecta;
+
+                  Color tileColor = Colors.white;
+                  Color borderColor = const Color(0xFFE0E0E0);
+                  Color circleColor = const Color(0xFFF5F5F5);
+                  Color textColor = const Color(0xFF757575);
+
+                  if (yaConfirmada) {
+                    if (esOpcionCorrecta) {
+                      tileColor = const Color(0xFFE8F5E9);
+                      borderColor = const Color(0xFF4CAF50);
+                      circleColor = const Color(0xFF4CAF50);
+                      textColor = Colors.white;
+                    } else if (esOpcionSeleccionadaErronea) {
+                      tileColor = const Color(0xFFFFEBEE);
+                      borderColor = const Color(0xFFE57373);
+                      circleColor = const Color(0xFFE57373);
+                      textColor = Colors.white;
+                    }
+                  } else if (estaSeleccionada) {
+                    tileColor = const Color(0xFFFFF3E0);
+                    borderColor = const Color(0xFFF39C12);
+                    circleColor = const Color(0xFFF39C12);
+                    textColor = Colors.white;
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: InkWell(
-                      onTap: _enviando ? null : () => _seleccionarOpcion(index),
+                      onTap: (_enviando || yaConfirmada)
+                          ? null
+                          : () => _seleccionarOpcion(index),
                       borderRadius: BorderRadius.circular(16),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: estaSeleccionada
-                              ? const Color(0xFFFFF3E0)
-                              : Colors.white,
+                          color: tileColor,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: estaSeleccionada
-                                ? const Color(0xFFF39C12)
-                                : const Color(0xFFE0E0E0),
-                            width: estaSeleccionada ? 2 : 1,
+                            color: borderColor,
+                            width: (estaSeleccionada || esOpcionCorrecta)
+                                ? 2
+                                : 1,
                           ),
                           boxShadow: [
-                            if (estaSeleccionada)
+                            if (estaSeleccionada || esOpcionCorrecta)
                               BoxShadow(
-                                color: const Color(0xFFF39C12)
+                                color: (esOpcionCorrecta
+                                        ? const Color(0xFF4CAF50)
+                                        : const Color(0xFFF39C12))
                                     .withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
@@ -443,9 +592,7 @@ class _QuizViewState extends State<QuizView> {
                               height: 36,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: estaSeleccionada
-                                    ? const Color(0xFFF39C12)
-                                    : const Color(0xFFF5F5F5),
+                                color: circleColor,
                                 shape: BoxShape.circle,
                               ),
                               child: Text(
@@ -453,9 +600,7 @@ class _QuizViewState extends State<QuizView> {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: estaSeleccionada
-                                      ? Colors.white
-                                      : const Color(0xFF757575),
+                                  color: textColor,
                                 ),
                               ),
                             ),
@@ -465,7 +610,8 @@ class _QuizViewState extends State<QuizView> {
                                 textoOpcion,
                                 style: TextStyle(
                                   fontSize: 15,
-                                  fontWeight: estaSeleccionada
+                                  fontWeight: (estaSeleccionada ||
+                                          esOpcionCorrecta)
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                   color: const Color(0xFF3E2723),
@@ -479,6 +625,13 @@ class _QuizViewState extends State<QuizView> {
                     ),
                   );
                 }),
+
+                if (_retroalimentaciones.containsKey(pregunta.numero)) ...[
+                  const SizedBox(height: 16),
+                  _buildRetroalimentacion(
+                    _retroalimentaciones[pregunta.numero]!,
+                  ),
+                ],
               ],
             ),
           ),
@@ -524,7 +677,13 @@ class _QuizViewState extends State<QuizView> {
                 ElevatedButton.icon(
                   onPressed: _enviando ? null : _irSiguiente,
                   icon: const Icon(Icons.arrow_forward, size: 18),
-                  label: const Text('Siguiente'),
+                  label: Text(
+                    widget.quizService is QuizFeedbackService &&
+                            !_retroalimentaciones
+                                .containsKey(pregunta.numero)
+                        ? 'Comprobar respuesta'
+                        : 'Siguiente',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF39C12),
                     foregroundColor: Colors.white,
@@ -551,7 +710,14 @@ class _QuizViewState extends State<QuizView> {
                         )
                       : const Icon(Icons.check_circle, size: 18),
                   label: Text(
-                    _enviando ? 'Corrigiendo...' : 'Finalizar preguntas',
+                    _enviando
+                        ? 'Corrigiendo...'
+                        : (widget.quizService is QuizFeedbackService
+                            ? (_retroalimentaciones
+                                    .containsKey(pregunta.numero)
+                                ? 'Ver mi resultado'
+                                : 'Comprobar respuesta')
+                            : 'Finalizar preguntas'),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
@@ -569,6 +735,88 @@ class _QuizViewState extends State<QuizView> {
           ),
         ),
       ],
+    );
+  }
+
+  String _nombreNivel(String id) {
+    switch (id.toLowerCase()) {
+      case 'literal':
+        return 'Literal';
+      case 'inferencial':
+        return 'Inferencial';
+      case 'critico_reflexivo':
+        return 'Crítico-reflexivo';
+      default:
+        return 'Sin clasificar';
+    }
+  }
+
+  Widget _buildRetroalimentacion(QuizQuestionResult r) {
+    final bool ok = r.esCorrecta;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ok ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: ok ? const Color(0xFFA5D6A7) : const Color(0xFFFFCC80),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                ok ? Icons.check_circle_rounded : Icons.lightbulb_rounded,
+                color: ok ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                ok ? '¡Correcto! 🌟' : 'Revisemos tu respuesta 💡',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: ok
+                      ? const Color(0xFF1B5E20)
+                      : const Color(0xFFBF360C),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            r.explicacion,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.4,
+              color: Color(0xFF3E2723),
+            ),
+          ),
+          if (!ok) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Respuesta correcta: ${r.opcionCorrectaTexto}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Lee esta explicación antes de continuar.',
+            style: TextStyle(
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+              color: Colors.brown.shade600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

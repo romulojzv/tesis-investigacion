@@ -6,11 +6,13 @@ class QuizQuestion {
   final int numero;
   final String pregunta;
   final List<String> opciones;
+  final String nivelComprension;
 
   const QuizQuestion({
     required this.numero,
     required this.pregunta,
     required this.opciones,
+    this.nivelComprension = 'sin_clasificar',
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
@@ -19,11 +21,20 @@ class QuizQuestion {
       numero: json['numero'] as int? ?? 1,
       pregunta: json['pregunta'] as String? ?? '',
       opciones: opcionesRaw.map((e) => e.toString()).toList(),
+      nivelComprension: (json['nivelComprension'] ??
+              json['nivel_comprension'] ??
+              'sin_clasificar')
+          .toString(),
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'numero': numero, 'pregunta': pregunta, 'opciones': opciones};
+    return {
+      'numero': numero,
+      'pregunta': pregunta,
+      'opciones': opciones,
+      'nivelComprension': nivelComprension,
+    };
   }
 }
 

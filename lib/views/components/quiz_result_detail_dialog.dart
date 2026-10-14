@@ -21,6 +21,19 @@ class QuizResultDetailDialog extends StatelessWidget {
     );
   }
 
+  static String _nombreNivel(String nivel) {
+    switch (nivel.toLowerCase()) {
+      case 'literal':
+        return 'Literal';
+      case 'inferencial':
+        return 'Inferencial';
+      case 'critico_reflexivo':
+        return 'Crítico-reflexivo';
+      default:
+        return 'Sin clasificar';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. Ordenar siempre por numero_pregunta ascendente (conservando numero como dato de dominio)
@@ -110,13 +123,44 @@ class QuizResultDetailDialog extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Pregunta $numDisplay',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: Color(0xFFE65100),
-                                    ),
+                                  Wrap(
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 8,
+                                    children: [
+                                      Text(
+                                        'Pregunta $numDisplay',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Color(0xFFE65100),
+                                        ),
+                                      ),
+                                      if (r.nivelComprension !=
+                                          'sin_clasificar')
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFF3E0),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: const Color(0xFFFFCC80),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _nombreNivel(r.nivelComprension),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFE65100),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   const SizedBox(height: 2),
                                   Text(

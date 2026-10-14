@@ -33,3 +33,13 @@ npm-debug.log*
 
 # Supabase local CLI state
 supabase/.branches/
+
+# Benchmark AISLADO - Secretos y llaves ciegas
+benchmark/.env
+benchmark/.env.*
+benchmark/**/llave_maestra.json
+benchmark/**/*.secret.*
+benchmark/resultados/temp/
+benchmark/resultados_piloto/respuestas/
+referencias_agente/
+deno.lock
