@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/cuento.dart';
@@ -5,6 +7,7 @@ import '../models/quiz_attempt_summary.dart';
 import '../models/user_profile.dart';
 import '../repositories/cuento_repository.dart';
 import '../repositories/quiz_repository_supabase.dart';
+import '../services/pdf_export_service.dart';
 
 class StudentHomeView extends StatefulWidget {
   final UserProfile perfil;
@@ -43,6 +46,7 @@ class _StudentHomeViewState extends State<StudentHomeView> {
   bool _cargandoCuentos = false;
   String? _errorCuentos;
   String? _cargandoCuentoId;
+  String? _exportandoPdfId;
 
   @override
   void initState() {
@@ -139,6 +143,83 @@ class _StudentHomeViewState extends State<StudentHomeView> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _exportarPdfDesdeTarjeta(
+    Cuento cuentoResumen,
+    QuizAttemptSummary intentoResumen,
+  ) async {
+    if (_exportandoPdfId != null) return;
+    setState(() => _exportandoPdfId = cuentoResumen.id);
+
+    try {
+      final cuentoCompleto = await widget.cuentoRepository.obtenerCuento(
+        cuentoResumen.id,
+      );
+      if (cuentoCompleto == null) {
+        throw StateError('No se pudo cargar el cuento para la exportación.');
+      }
+
+      QuizAttemptSummary intentoCompleto = intentoResumen;
+      if (intentoCompleto.respuestas.isEmpty && widget.quizRepository != null) {
+        final intentoRecargado = await widget.quizRepository!
+            .obtenerResumenQuizPorCuento(cuentoResumen.id);
+        if (intentoRecargado != null) {
+          intentoCompleto = intentoRecargado;
+        }
+      }
+
+      final bytes = await PdfExportService().generarPdf(
+        cuentoCompleto,
+        intentoQuiz: intentoCompleto,
+      );
+
+      final nombreSugerido =
+          'cuento_${cuentoCompleto.id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf';
+
+      final Uri? uriSeleccionado = await FilePicker.saveFile(
+        dialogTitle: 'Guardar cuento interactivo en PDF',
+        fileName: nombreSugerido,
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+
+      if (!mounted) return;
+
+      if (uriSeleccionado != null) {
+        try {
+          if (uriSeleccionado.scheme == 'file') {
+            final file = File(uriSeleccionado.toFilePath());
+            if (!await file.exists() || await file.length() == 0) {
+              await file.writeAsBytes(bytes, flush: true);
+            }
+          }
+        } catch (_) {}
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              backgroundColor: Color(0xFF2E7D32),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo guardar el PDF: $e'),
+            backgroundColor: const Color(0xFFC62828),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportandoPdfId = null);
     }
   }
 
@@ -485,8 +566,11 @@ class _StudentHomeViewState extends State<StudentHomeView> {
                   onTap: estaCargando ? null : () => _abrirAventura(cuento),
                 ),
                 const Divider(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -516,20 +600,76 @@ class _StudentHomeViewState extends State<StudentHomeView> {
                         ],
                       ),
                     ),
-                    if (esCompletado && widget.onVerResultado != null)
-                      TextButton.icon(
-                        onPressed: () =>
-                            widget.onVerResultado!(cuento, intento),
-                        icon: const Icon(Icons.analytics_outlined, size: 17),
-                        label: const Text('Ver mi resultado'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFF39C12),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (esCompletado && widget.onVerResultado != null)
+                          TextButton.icon(
+                            onPressed: () =>
+                                widget.onVerResultado!(cuento, intento),
+                            icon: const Icon(Icons.analytics_outlined, size: 17),
+                            label: const Text('Ver mi resultado'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFF39C12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          message: esCompletado
+                              ? 'Descargar tu cuento en PDF con los resultados'
+                              : 'Completa primero las preguntas para descargar tu cuento con los resultados',
+                          child: OutlinedButton.icon(
+                            onPressed: (estaCargando || _exportandoPdfId == cuento.id)
+                                ? null
+                                : (esCompletado && intento != null
+                                    ? () => _exportarPdfDesdeTarjeta(cuento, intento)
+                                    : null),
+                            icon: _exportandoPdfId == cuento.id
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Icon(
+                                    Icons.picture_as_pdf_rounded,
+                                    size: 16,
+                                    color: esCompletado
+                                        ? const Color(0xFFD32F2F)
+                                        : Colors.grey,
+                                  ),
+                            label: Text(
+                              _exportandoPdfId == cuento.id
+                                  ? 'Exportando...'
+                                  : 'Exportar PDF',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: esCompletado
+                                    ? const Color(0xFF37474F)
+                                    : Colors.grey,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: esCompletado
+                                    ? const Color(0xFFB0BEC5)
+                                    : const Color(0xFFE0E0E0),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
               ],

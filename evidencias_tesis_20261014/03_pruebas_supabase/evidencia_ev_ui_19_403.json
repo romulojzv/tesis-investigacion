@@ -1,0 +1,31 @@
+{
+  "codigo_evidencia": "EV-UI-19",
+  "descripcion": "Rechazo de intento de respuesta cruzada entre estudiantes (Control de Acceso)",
+  "entorno": "Supabase Staging (acxsyswrzdtstgqztojj)",
+  "fecha_utc": "2026-10-15T00:56:15.610Z",
+  "endpoint": "https://acxsyswrzdtstgqztojj.supabase.co/functions/v1/responder-pregunta",
+  "metodo": "POST",
+  "solicitante": {
+    "rol": "estudiante",
+    "codigo_acceso": "EST_EV_B",
+    "token_header": "Bearer [REDACTED_JWT_TOKEN_ESTUDIANTE_B]"
+  },
+  "recurso_objetivo": {
+    "intento_id": "8fa5e2fe-5fc4-4387-a6a1-c96925a7abe9",
+    "propietario_codigo": "EST_EV_A",
+    "pregunta_numero": 1,
+    "indice_intentado": 0
+  },
+  "resultado_http": {
+    "status_code": 403,
+    "status_text": "Forbidden",
+    "response_body": {
+      "error": "Intento no autorizado para este estudiante."
+    }
+  },
+  "verificacion_persistencia_bd": {
+    "pregunta_1_indice_seleccionado": null,
+    "modificacion_indebida_ocurrida": false,
+    "conclusion_seguridad": "APROBADO: Solicitud cruzada rechazada con HTTP 403 y datos de base de datos preservados sin modificación."
+  }
+}

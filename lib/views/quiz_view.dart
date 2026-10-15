@@ -1,9 +1,14 @@
 // lib/views/quiz_view.dart
 
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../models/cuento.dart';
+import '../models/quiz_attempt_summary.dart';
 import '../models/quiz_question.dart';
 import '../models/quiz_result.dart';
+import '../services/pdf_export_service.dart';
 import '../services/supabase_quiz_service.dart';
 
 class QuizView extends StatefulWidget {
@@ -13,6 +18,7 @@ class QuizView extends StatefulWidget {
   final VoidCallback onVolver;
   final VoidCallback? onFinalizado;
   final QuizResult? resultadoInicial;
+  final Cuento? cuento;
 
   const QuizView({
     super.key,
@@ -22,6 +28,7 @@ class QuizView extends StatefulWidget {
     required this.onVolver,
     this.onFinalizado,
     this.resultadoInicial,
+    this.cuento,
   });
 
   @override
@@ -45,6 +52,7 @@ class _QuizViewState extends State<QuizView> {
 
   // Resultado recibido del servidor
   QuizResult? _resultado;
+  bool _exportandoPdf = false;
 
   @override
   void initState() {
@@ -283,6 +291,89 @@ class _QuizViewState extends State<QuizView> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _exportarPdfDesdeResultados() async {
+    final res = _resultado;
+    final cuento = widget.cuento;
+    if (res == null || cuento == null || _exportandoPdf) return;
+
+    setState(() => _exportandoPdf = true);
+
+    try {
+      final summary = QuizAttemptSummary(
+        intentoId: res.intentoId,
+        cuentoId: widget.cuentoId,
+        cuentoTitulo: widget.tituloCuento,
+        estudianteId: '',
+        estudianteNombre: cuento.personajePrincipal.isNotEmpty
+            ? cuento.personajePrincipal
+            : 'Estudiante',
+        codigoAcceso: '',
+        estado: 'completado',
+        puntaje: res.puntaje,
+        totalPreguntas: res.total,
+        porcentaje: res.porcentaje,
+        createdAt: DateTime.now(),
+        completedAt: DateTime.now(),
+        respuestas: res.respuestas,
+      );
+
+      final bytes = await PdfExportService().generarPdf(
+        cuento,
+        intentoQuiz: summary,
+      );
+
+      if (bytes.isEmpty) {
+        throw StateError('El archivo PDF generado está vacío.');
+      }
+
+      final nombreSugerido =
+          'cuento_${cuento.id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf';
+
+      final Uri? uriSeleccionado = await FilePicker.saveFile(
+        dialogTitle: 'Guardar cuento interactivo en PDF',
+        fileName: nombreSugerido,
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+
+      if (!mounted) return;
+
+      if (uriSeleccionado != null) {
+        try {
+          if (uriSeleccionado.scheme == 'file') {
+            final file = File(uriSeleccionado.toFilePath());
+            if (!await file.exists() || await file.length() == 0) {
+              await file.writeAsBytes(bytes, flush: true);
+            }
+          }
+        } catch (_) {}
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              backgroundColor: Color(0xFF2E7D32),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo guardar el PDF: $e'),
+            backgroundColor: const Color(0xFFC62828),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportandoPdf = false);
     }
   }
 
@@ -1118,30 +1209,71 @@ class _QuizViewState extends State<QuizView> {
 
           const SizedBox(height: 20),
 
-          // Botón final para volver
+          // Botones de acción final: Exportar PDF y Volver
           Center(
-            child: ElevatedButton.icon(
-              onPressed: () {
-                widget.onFinalizado?.call();
-                widget.onVolver();
-              },
-              icon: const Icon(Icons.auto_stories_rounded),
-              label: const Text('Volver a Mis aventuras'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF39C12),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 14,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                if (widget.cuento != null)
+                  ElevatedButton.icon(
+                    onPressed: _exportandoPdf ? null : _exportarPdfDesdeResultados,
+                    icon: _exportandoPdf
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.picture_as_pdf_rounded),
+                    label: Text(
+                      _exportandoPdf
+                          ? 'Exportando...'
+                          : 'Exportar Cuento en PDF',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    widget.onFinalizado?.call();
+                    widget.onVolver();
+                  },
+                  icon: const Icon(Icons.auto_stories_rounded),
+                  label: const Text('Volver a Mis aventuras'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF5D4037),
+                    side: const BorderSide(color: Color(0xFFBCAAA4)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              ],
             ),
           ),
           const SizedBox(height: 24),

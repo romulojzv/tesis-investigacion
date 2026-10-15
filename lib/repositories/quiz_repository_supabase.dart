@@ -82,16 +82,37 @@ class QuizRepositorySupabase implements QuizRepository {
             total_preguntas,
             porcentaje,
             created_at,
-            completed_at
+            completed_at,
+            cuentos ( titulo ),
+            profiles:estudiante_id ( nombre, codigo_acceso ),
+            aulas ( nombre ),
+            quiz_respuestas (
+              numero_pregunta,
+              pregunta,
+              opciones,
+              indice_seleccionado,
+              indice_correcto,
+              es_correcta,
+              explicacion,
+              nivel_comprension
+            )
           ''')
-          .eq('estudiante_id', estudianteId);
+          .eq('estudiante_id', estudianteId)
+          .order('completed_at', ascending: false, nullsFirst: false)
+          .order('created_at', ascending: false);
 
       final mapa = <String, QuizAttemptSummary>{};
       for (final item in (data as List<dynamic>)) {
         final summary = QuizAttemptSummary.fromJson(
           item as Map<String, dynamic>,
         );
-        mapa[summary.cuentoId] = summary;
+        final existente = mapa[summary.cuentoId];
+        // Regla: Si no existe, se añade. Si el existente no está completado pero el actual sí, se prioriza el completado.
+        if (existente == null) {
+          mapa[summary.cuentoId] = summary;
+        } else if (!existente.estaCompletado && summary.estaCompletado) {
+          mapa[summary.cuentoId] = summary;
+        }
       }
       return mapa;
     } catch (e) {
@@ -119,13 +140,36 @@ class QuizRepositorySupabase implements QuizRepository {
             total_preguntas,
             porcentaje,
             created_at,
-            completed_at
+            completed_at,
+            cuentos ( titulo ),
+            profiles:estudiante_id ( nombre, codigo_acceso ),
+            aulas ( nombre ),
+            quiz_respuestas (
+              numero_pregunta,
+              pregunta,
+              opciones,
+              indice_seleccionado,
+              indice_correcto,
+              es_correcta,
+              explicacion,
+              nivel_comprension
+            )
           ''')
           .eq('cuento_id', cuentoId)
-          .maybeSingle();
+          .order('completed_at', ascending: false, nullsFirst: false)
+          .order('created_at', ascending: false);
 
-      if (data == null) return null;
-      return QuizAttemptSummary.fromJson(data);
+      final lista = data as List<dynamic>?;
+      if (lista == null || lista.isEmpty) return null;
+
+      // Regla consistente: seleccionar preferentemente el último intento completado y autorizado
+      final completado = lista.firstWhere(
+        (item) => item['estado'] == 'completado',
+        orElse: () => null,
+      );
+
+      final elegido = completado ?? lista.first;
+      return QuizAttemptSummary.fromJson(elegido as Map<String, dynamic>);
     } catch (e) {
       debugPrint(
         '[QuizRepositorySupabase] Error cargando resumen quiz por cuento: $e',

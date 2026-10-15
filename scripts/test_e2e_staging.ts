@@ -421,7 +421,7 @@ export async function ejecutarPruebasE2E(config: {
 
   // 8. Solicitudes concurrentes simultáneas (Item 8)
   console.log('\n--- 8. Probando solicitudes simultáneas concurrentes (Promise.all) ---');
-  const cuentoIdEst2 = 'cuento-staging-002';
+  const cuentoIdEst2 = `cuento-staging-conc-${Date.now()}`;
   await adminClient.from('cuentos').upsert({
     id: cuentoIdEst2,
     titulo: 'Aventura Concurrente',
@@ -430,13 +430,14 @@ export async function ejecutarPruebasE2E(config: {
     aula_id: aulaId,
   });
 
-  const { data: intentoIns2 } = await adminClient.from('quiz_intentos').insert({
+  const { data: intentoIns2, error: errIns2 } = await adminClient.from('quiz_intentos').insert({
     cuento_id: cuentoIdEst2,
     estudiante_id: estudiante2.id,
     aula_id: aulaId,
     estado: 'en_progreso',
     total_preguntas: 5,
   }).select('id').single();
+  if (errIns2) throw new Error(`Error creando intento concurrente: ${errIns2.message}`);
   const intentoConcurrenteId = intentoIns2!.id;
 
   await adminClient.from('quiz_respuestas').insert([

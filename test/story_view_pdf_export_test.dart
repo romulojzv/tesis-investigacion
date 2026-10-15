@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:tesis_investigacion/controllers/story_controller.dart';
 import 'package:tesis_investigacion/models/cuento.dart';
 import 'package:tesis_investigacion/models/escena.dart';
+import 'package:tesis_investigacion/models/quiz_attempt_summary.dart';
 import 'package:tesis_investigacion/repositories/cuento_repository_memoria.dart';
 import 'package:tesis_investigacion/services/ai_service.dart';
 import 'package:tesis_investigacion/services/document_service.dart';
@@ -54,7 +55,11 @@ void main() {
     );
   });
 
-  Widget crearApp({required Cuento cuento, bool modoHistorico = false}) {
+  Widget crearApp({
+    required Cuento cuento,
+    bool modoHistorico = false,
+    QuizAttemptSummary? intentoQuiz,
+  }) {
     return MaterialApp(
       home: StoryView(
         cuento: cuento,
@@ -62,12 +67,30 @@ void main() {
         narracionService: narracionService,
         autoNarrar: false,
         modoHistorico: modoHistorico,
+        intentoQuiz: intentoQuiz,
         onSalir: () {},
       ),
     );
   }
 
-  group('RF-30 & RF-31: Botón Exportar PDF en StoryView', () {
+  QuizAttemptSummary crearIntento({required String estado}) {
+    return QuizAttemptSummary(
+      intentoId: 'int-123',
+      cuentoId: 'cuento-1',
+      cuentoTitulo: 'Cuento de Prueba',
+      estudianteId: 'est-1',
+      estudianteNombre: 'Nico Explorador',
+      codigoAcceso: 'DEMO26',
+      estado: estado,
+      puntaje: estado == 'completado' ? 5 : null,
+      totalPreguntas: 5,
+      porcentaje: estado == 'completado' ? 100 : null,
+      createdAt: DateTime.now(),
+      completedAt: estado == 'completado' ? DateTime.now() : null,
+    );
+  }
+
+  group('RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz', () {
     testWidgets('No muestra botón Exportar PDF si la escena NO es final', (tester) async {
       final cuentoNoFinal = Cuento(
         id: 'cuento-no-final',
@@ -92,7 +115,7 @@ void main() {
       expect(find.text('Exportar PDF'), findsNothing);
     });
 
-    testWidgets('Muestra botón Exportar PDF cuando la escena es final', (tester) async {
+    testWidgets('Botón Exportar PDF está deshabilitado y muestra advertencia si el quiz no está completado', (tester) async {
       final cuentoFinalizado = Cuento(
         id: 'cuento-final',
         titulo: 'El Gran Tesoro',
@@ -110,35 +133,72 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1280, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(crearApp(cuento: cuentoFinalizado));
+      // Caso 1: Sin intento de quiz iniciado
+      await tester.pumpWidget(crearApp(cuento: cuentoFinalizado, intentoQuiz: null));
       await tester.pumpAndSettle();
 
       expect(find.text('Exportar PDF'), findsOneWidget);
-      expect(find.byIcon(Icons.picture_as_pdf_rounded), findsOneWidget);
+      // El botón debe estar deshabilitado (onPressed == null)
+      final botonDeshabilitado = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Exportar PDF'),
+      );
+      expect(botonDeshabilitado.onPressed, isNull);
+
+      // Debe mostrar la advertencia pedagógica clara
+      expect(
+        find.text('Completa primero las preguntas para descargar tu cuento con los resultados'),
+        findsOneWidget,
+      );
+
+      // Caso 2: Intento de quiz en progreso
+      final intentoEnProgreso = crearIntento(estado: 'en_progreso');
+      await tester.pumpWidget(crearApp(cuento: cuentoFinalizado, intentoQuiz: intentoEnProgreso));
+      await tester.pumpAndSettle();
+
+      final botonEnProgreso = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Exportar PDF'),
+      );
+      expect(botonEnProgreso.onPressed, isNull);
+      expect(
+        find.text('Completa primero las preguntas para descargar tu cuento con los resultados'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('Muestra botón Exportar PDF en modo historial si la escena es final', (tester) async {
-      final cuentoHistorial = Cuento(
-        id: 'cuento-historial',
-        titulo: 'Cuento Recordado',
-        personajePrincipal: 'Sam',
+    testWidgets('Botón Exportar PDF está habilitado cuando el quiz está completado', (tester) async {
+      final cuentoFinalizado = Cuento(
+        id: 'cuento-final',
+        titulo: 'El Gran Tesoro',
+        personajePrincipal: 'Valeria',
         escenas: [
           Escena(
             numero: 1,
-            contenido: 'Fin del relato histórico.',
-            opciones: ['Terminar'],
+            contenido: 'Valeria abrió el cofre y encontró la gema de la sabiduría.',
+            opciones: ['Fin de la aventura'],
             esFinal: true,
           ),
         ],
       );
 
+      final intentoCompletado = crearIntento(estado: 'completado');
+
       await tester.binding.setSurfaceSize(const Size(1280, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(crearApp(cuento: cuentoHistorial, modoHistorico: true));
+      await tester.pumpWidget(crearApp(cuento: cuentoFinalizado, intentoQuiz: intentoCompletado));
       await tester.pumpAndSettle();
 
       expect(find.text('Exportar PDF'), findsOneWidget);
+      final botonHabilitado = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Exportar PDF'),
+      );
+      expect(botonHabilitado.onPressed, isNotNull);
+
+      // La advertencia de bloqueo ya no debe aparecer
+      expect(
+        find.text('Completa primero las preguntas para descargar tu cuento con los resultados'),
+        findsNothing,
+      );
     });
   });
 }

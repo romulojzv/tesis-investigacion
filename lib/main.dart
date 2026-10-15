@@ -961,6 +961,7 @@ class _HomeRouterState extends State<_HomeRouter> {
           quizService: _quizService,
           onVolver: () => _irInicio(tab: 1),
           onFinalizado: () => _irInicio(tab: 1),
+          cuento: cuento,
         );
 
       // =====================================================

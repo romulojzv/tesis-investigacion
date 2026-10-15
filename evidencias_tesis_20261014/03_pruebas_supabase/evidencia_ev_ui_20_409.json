@@ -1,0 +1,35 @@
+{
+  "codigo_evidencia": "EV-UI-20",
+  "descripcion": "Inmutabilidad de respuesta confirmada ante intento de modificación posterior",
+  "entorno": "Supabase Staging (acxsyswrzdtstgqztojj)",
+  "fecha_utc": "2026-10-15T00:56:18.804Z",
+  "endpoint": "https://acxsyswrzdtstgqztojj.supabase.co/functions/v1/responder-pregunta",
+  "metodo": "POST",
+  "solicitante": {
+    "rol": "estudiante",
+    "codigo_acceso": "EST_EV_A",
+    "token_header": "Bearer [REDACTED_JWT_TOKEN_ESTUDIANTE_A]"
+  },
+  "accion_previa": {
+    "pregunta_numero": 1,
+    "indice_confirmado_original": 0,
+    "resultado_previo": "esCorrecta=true"
+  },
+  "intento_modificacion": {
+    "pregunta_numero": 1,
+    "nuevo_indice_intentado": 2
+  },
+  "resultado_http": {
+    "status_code": 409,
+    "status_text": "Conflict",
+    "response_body": {
+      "error": "Respuesta ya confirmada y no modificable"
+    }
+  },
+  "verificacion_persistencia_bd": {
+    "indice_seleccionado_actual": 0,
+    "es_correcta_actual": true,
+    "respuesta_original_preservada": true,
+    "conclusion_seguridad": "APROBADO: Intento de modificación rechazado con HTTP 409 Conflict. La respuesta original permanece inmutable en base de datos."
+  }
+}

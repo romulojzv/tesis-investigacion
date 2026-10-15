@@ -1233,9 +1233,27 @@ class _StoryViewState extends State<StoryView> {
     final ultimaEscena = widget.cuento.escenas.last;
     if (!ultimaEscena.esFinal) return;
 
+    if (widget.intentoQuiz == null || !widget.intentoQuiz!.estaCompletado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Completa primero las preguntas para descargar tu cuento con los resultados.',
+            ),
+            backgroundColor: Color(0xFFE65100),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _exportandoPdf = true);
     try {
-      final bytes = await PdfExportService().generarPdf(widget.cuento);
+      final bytes = await PdfExportService().generarPdf(
+        widget.cuento,
+        intentoQuiz: widget.intentoQuiz,
+      );
       if (bytes.isEmpty) {
         throw StateError('El archivo PDF generado está vacío.');
       }
@@ -1291,6 +1309,7 @@ class _StoryViewState extends State<StoryView> {
   Widget _buildFinal() {
     String etiquetaBoton = 'Ir a las preguntas';
     IconData iconoBoton = Icons.quiz_rounded;
+    final bool quizCompletado = widget.intentoQuiz?.estaCompletado ?? false;
 
     if (widget.intentoQuiz != null) {
       if (widget.intentoQuiz!.estado == 'en_progreso') {
@@ -1310,57 +1329,107 @@ class _StoryViewState extends State<StoryView> {
           color: const Color(0xFFE8F5E9),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 16,
-          runSpacing: 12,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '🎉 ¡Has llegado al final de esta aventura!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            OutlinedButton.icon(
-              onPressed: _exportandoPdf ? null : _exportarPdfFinal,
-              icon: _exportandoPdf
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(
-                      Icons.picture_as_pdf_rounded,
-                      color: Color(0xFFD32F2F),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                const Text(
+                  '🎉 ¡Has llegado al final de esta aventura!',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Tooltip(
+                  message: quizCompletado
+                      ? 'Descargar tu cuento en PDF con los resultados'
+                      : 'Completa primero las preguntas para descargar tu cuento con los resultados',
+                  child: OutlinedButton.icon(
+                    onPressed: (_exportandoPdf || !quizCompletado)
+                        ? null
+                        : _exportarPdfFinal,
+                    icon: _exportandoPdf
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.picture_as_pdf_rounded,
+                            color: quizCompletado
+                                ? const Color(0xFFD32F2F)
+                                : Colors.grey,
+                          ),
+                    label: Text(_exportandoPdf ? 'Exportando...' : 'Exportar PDF'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF37474F),
+                      side: BorderSide(
+                        color: quizCompletado
+                            ? const Color(0xFFB0BEC5)
+                            : const Color(0xFFE0E0E0),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-              label: Text(_exportandoPdf ? 'Exportando...' : 'Exportar PDF'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF37474F),
-                side: const BorderSide(color: Color(0xFFB0BEC5)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
+                if (widget.onIrEvaluacion != null) ...[
+                  FilledButton.icon(
+                    onPressed: () {
+                      _detenerNarracion();
+                      widget.onIrEvaluacion?.call();
+                    },
+                    icon: Icon(iconoBoton),
+                    label: Text(etiquetaBoton),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            if (widget.onIrEvaluacion != null) ...[
-              FilledButton.icon(
-                onPressed: () {
-                  _detenerNarracion();
-                  widget.onIrEvaluacion?.call();
-                },
-                icon: Icon(iconoBoton),
-                label: Text(etiquetaBoton),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+            if (!quizCompletado) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFB74D)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.lock_clock_rounded,
+                      size: 18,
+                      color: Color(0xFFE65100),
+                    ),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Completa primero las preguntas para descargar tu cuento con los resultados',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFE65100),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
