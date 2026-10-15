@@ -347,22 +347,50 @@ class PdfExportService {
       )..sort((a, b) => a.numero.compareTo(b.numero));
 
       for (final resp in respuestasOrdenadas) {
-        // Estimar espacio requerido para la pregunta (~100-120 pt)
-        if (yEval + 110 > altoEval - 20) {
+        final nivelNombre = _formatearNivel(resp.nivelComprension);
+        final esCorrecta = resp.esCorrecta;
+        final estadoTexto = esCorrecta ? '[Correcta]' : '[Incorrecta]';
+        final brushEstado = esCorrecta ? colorAcierto : colorError;
+
+        final textoPregunta = _sanitizarParaPdf(resp.pregunta);
+        final sizePreg = fontCuerpoNegrita.measureString(
+          textoPregunta,
+          layoutArea: Size(anchoEval, 1000),
+        );
+
+        final explicacionLimpia = resp.explicacion.trim().isNotEmpty
+            ? _sanitizarParaPdf('Explicación pedagógica: ${resp.explicacion.trim()}')
+            : '';
+        final sizeExpl = explicacionLimpia.isNotEmpty
+            ? fontDetalle.measureString(
+                explicacionLimpia,
+                layoutArea: Size(anchoEval - 20, 1000),
+              )
+            : Size.zero;
+        final double alturaCajaExpl = explicacionLimpia.isNotEmpty
+            ? (sizeExpl.height + 14)
+            : 0;
+
+        // Estimar altura total que requerirá la pregunta completa
+        final double alturaEstimadaPregunta =
+            22 +
+            sizePreg.height +
+            8 +
+            (resp.opciones.length * 16) +
+            (alturaCajaExpl > 0 ? (alturaCajaExpl + 10) : 8) +
+            14;
+
+        // Si la pregunta no cabe completa y ya hay contenido en la página, iniciar nueva página
+        if (yEval + alturaEstimadaPregunta > altoEval - 20 && yEval > 50) {
           paginaEval = pdf.pages.add();
           anchoEval = paginaEval.getClientSize().width;
           altoEval = paginaEval.getClientSize().height;
           yEval = 14.0;
         }
 
-        final nivelNombre = _formatearNivel(resp.nivelComprension);
-        final esCorrecta = resp.esCorrecta;
-        final estadoTexto = esCorrecta ? '[Correcta]' : '[Incorrecta]';
-        final brushEstado = esCorrecta ? colorAcierto : colorError;
-
-        // Fila 1: Número, nivel y estado
+        // Fila 1: Número, nivel de comprensión y estado de acierto
         paginaEval.graphics.drawString(
-          'Pregunta ${resp.numero} • Nivel: $nivelNombre',
+          'Pregunta ${resp.numero} - Nivel: $nivelNombre',
           fontSeccion,
           brush: colorTextoOscuro,
           bounds: Rect.fromLTWH(0, yEval, anchoEval - 100, 18),
@@ -374,20 +402,30 @@ class PdfExportService {
           bounds: Rect.fromLTWH(anchoEval - 95, yEval, 95, 18),
           format: PdfStringFormat(alignment: PdfTextAlignment.right),
         );
-        yEval += 20;
+        yEval += 22;
 
-        // Fila 2: Texto de la pregunta
-        final textoPregunta = _sanitizarParaPdf(resp.pregunta);
+        // Fila 2: Texto de la pregunta con ajuste de líneas
         final elemPregunta = PdfTextElement(
           text: textoPregunta,
           font: fontCuerpoNegrita,
           brush: colorTextoOscuro,
+          format: PdfStringFormat(lineSpacing: 2),
         );
         final layoutPreg = elemPregunta.draw(
           page: paginaEval,
-          bounds: Rect.fromLTWH(0, yEval, anchoEval, 40),
+          bounds: Rect.fromLTWH(0, yEval, anchoEval, altoEval - yEval - 10),
+          format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
         );
-        yEval = (layoutPreg?.bounds.bottom ?? (yEval + 20)) + 6;
+        if (layoutPreg != null) {
+          if (layoutPreg.page != paginaEval) {
+            paginaEval = layoutPreg.page;
+            anchoEval = paginaEval.getClientSize().width;
+            altoEval = paginaEval.getClientSize().height;
+          }
+          yEval = layoutPreg.bounds.bottom + 8;
+        } else {
+          yEval += sizePreg.height + 8;
+        }
 
         // Fila 3: Opciones con selección y respuesta correcta
         for (int i = 0; i < resp.opciones.length; i++) {
@@ -414,36 +452,72 @@ class PdfExportService {
             fontOpcion = fontPequenaNegrita;
           }
 
+          final textoCompletoOpcion = '$letra) $textoOp$indicador';
+          final sizeOp = fontOpcion.measureString(
+            textoCompletoOpcion,
+            layoutArea: Size(anchoEval - 15, 200),
+          );
+          final double hOp = sizeOp.height > 14 ? (sizeOp.height + 2) : 14;
+
+          if (yEval + hOp > altoEval - 20) {
+            paginaEval = pdf.pages.add();
+            anchoEval = paginaEval.getClientSize().width;
+            altoEval = paginaEval.getClientSize().height;
+            yEval = 14.0;
+          }
+
           paginaEval.graphics.drawString(
-            '$letra) $textoOp$indicador',
+            textoCompletoOpcion,
             fontOpcion,
             brush: brushOpcion,
-            bounds: Rect.fromLTWH(10, yEval, anchoEval - 15, 14),
+            bounds: Rect.fromLTWH(10, yEval, anchoEval - 15, hOp),
           );
-          yEval += 14;
+          yEval += hOp + 2;
         }
         yEval += 4;
 
-        // Fila 4: Explicación pedagógica
-        if (resp.explicacion.trim().isNotEmpty) {
-          final explicacionLimpia = _sanitizarParaPdf(
-            'Explicación pedagógica: ${resp.explicacion}',
-          );
+        // Fila 4: Explicación pedagógica multilínea sin truncamiento
+        if (explicacionLimpia.isNotEmpty) {
+          if (yEval + alturaCajaExpl > altoEval - 20 && yEval > 40) {
+            paginaEval = pdf.pages.add();
+            anchoEval = paginaEval.getClientSize().width;
+            altoEval = paginaEval.getClientSize().height;
+            yEval = 14.0;
+          }
 
-          // Fondo claro para la explicación
+          final double cajaHeight = (yEval + alturaCajaExpl <= altoEval - 10)
+              ? alturaCajaExpl
+              : (altoEval - yEval - 10);
+
           paginaEval.graphics.drawRectangle(
             brush: PdfSolidBrush(PdfColor(255, 253, 231)),
             pen: PdfPen(PdfColor(255, 236, 179), width: 0.6),
-            bounds: Rect.fromLTWH(0, yEval, anchoEval, 24),
+            bounds: Rect.fromLTWH(0, yEval, anchoEval, cajaHeight),
           );
 
-          paginaEval.graphics.drawString(
-            explicacionLimpia,
-            fontDetalle,
+          final elemExplicacion = PdfTextElement(
+            text: explicacionLimpia,
+            font: fontDetalle,
             brush: colorTextoOscuro,
-            bounds: Rect.fromLTWH(6, yEval + 4, anchoEval - 12, 18),
+            format: PdfStringFormat(lineSpacing: 2),
           );
-          yEval += 30;
+
+          final layoutExpl = elemExplicacion.draw(
+            page: paginaEval,
+            bounds: Rect.fromLTWH(8, yEval + 6, anchoEval - 16, altoEval - yEval - 10),
+            format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
+          );
+
+          if (layoutExpl != null) {
+            if (layoutExpl.page != paginaEval) {
+              paginaEval = layoutExpl.page;
+              anchoEval = paginaEval.getClientSize().width;
+              altoEval = paginaEval.getClientSize().height;
+            }
+            yEval = layoutExpl.bounds.bottom + 12;
+          } else {
+            yEval += alturaCajaExpl + 8;
+          }
         } else {
           yEval += 8;
         }
@@ -489,16 +563,20 @@ class PdfExportService {
 
   /// Formatea la clave técnica del nivel pedagógico a texto legible para educación primaria.
   static String _formatearNivel(String nivel) {
-    switch (nivel.toLowerCase()) {
-      case 'literal':
-        return 'Literal';
-      case 'inferencial':
-        return 'Inferencial';
-      case 'critico_reflexivo':
-        return 'Crítico-reflexivo';
-      default:
-        return 'General';
+    final clean = nivel.toLowerCase().trim();
+    if (clean == 'literal') {
+      return 'Literal';
+    } else if (clean == 'inferencial') {
+      return 'Inferencial';
+    } else if (clean == 'critico_reflexivo' ||
+        clean == 'critico-reflexivo' ||
+        clean == 'crítico_reflexivo' ||
+        clean == 'crítico-reflexivo') {
+      return 'Crítico-reflexivo';
+    } else if (clean == 'sin_clasificar') {
+      return 'Sin clasificar';
     }
+    return 'General';
   }
 
   /// Sanitiza texto para fuentes estándar de PDF (Helvetica), conservando acentos
