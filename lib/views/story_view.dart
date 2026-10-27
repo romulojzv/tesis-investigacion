@@ -1273,19 +1273,27 @@ class _StoryViewState extends State<StoryView> {
       if (!mounted) return;
 
       if (uriSeleccionado != null) {
-        try {
-          if (uriSeleccionado.scheme == 'file') {
-            final file = File(uriSeleccionado.toFilePath());
-            if (!await file.exists() || await file.length() == 0) {
-              await file.writeAsBytes(bytes, flush: true);
-            }
-          }
-        } catch (_) {}
+        // Verificar el archivo antes de informar exito.
+        // Si falla, el catch exterior mostrara el error al estudiante.
+        if (uriSeleccionado.scheme != 'file') {
+          throw StateError('No se puede comprobar la ruta del PDF guardado.');
+        }
+        final archivoGuardado = File(uriSeleccionado.toFilePath());
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() == 0) {
+          await archivoGuardado.writeAsBytes(bytes, flush: true);
+        }
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() != bytes.length) {
+          throw StateError('No se pudo verificar el PDF guardado.');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              content: Text(
+                '¡Cuento guardado con éxito en tu computadora! 📄✨',
+              ),
               backgroundColor: Color(0xFF2E7D32),
               duration: Duration(seconds: 4),
             ),
@@ -1362,7 +1370,9 @@ class _StoryViewState extends State<StoryView> {
                                 ? const Color(0xFFD32F2F)
                                 : Colors.grey,
                           ),
-                    label: Text(_exportandoPdf ? 'Exportando...' : 'Exportar PDF'),
+                    label: Text(
+                      _exportandoPdf ? 'Exportando...' : 'Exportar PDF',
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF37474F),
                       side: BorderSide(
@@ -1404,7 +1414,10 @@ class _StoryViewState extends State<StoryView> {
             if (!quizCompletado) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3E0),
                   borderRadius: BorderRadius.circular(10),

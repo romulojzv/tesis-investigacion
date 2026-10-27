@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -190,19 +191,27 @@ class _StudentHomeViewState extends State<StudentHomeView> {
       if (!mounted) return;
 
       if (uriSeleccionado != null) {
-        try {
-          if (uriSeleccionado.scheme == 'file') {
-            final file = File(uriSeleccionado.toFilePath());
-            if (!await file.exists() || await file.length() == 0) {
-              await file.writeAsBytes(bytes, flush: true);
-            }
-          }
-        } catch (_) {}
+        // Verificar el archivo antes de informar exito.
+        // Si falla, el catch exterior mostrara el error al estudiante.
+        if (uriSeleccionado.scheme != 'file') {
+          throw StateError('No se puede comprobar la ruta del PDF guardado.');
+        }
+        final archivoGuardado = File(uriSeleccionado.toFilePath());
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() == 0) {
+          await archivoGuardado.writeAsBytes(bytes, flush: true);
+        }
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() != bytes.length) {
+          throw StateError('No se pudo verificar el PDF guardado.');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              content: Text(
+                '¡Cuento guardado con éxito en tu computadora! 📄✨',
+              ),
               backgroundColor: Color(0xFF2E7D32),
               duration: Duration(seconds: 4),
             ),
@@ -607,7 +616,10 @@ class _StudentHomeViewState extends State<StudentHomeView> {
                           TextButton.icon(
                             onPressed: () =>
                                 widget.onVerResultado!(cuento, intento),
-                            icon: const Icon(Icons.analytics_outlined, size: 17),
+                            icon: const Icon(
+                              Icons.analytics_outlined,
+                              size: 17,
+                            ),
                             label: const Text('Ver mi resultado'),
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFFF39C12),
@@ -623,16 +635,22 @@ class _StudentHomeViewState extends State<StudentHomeView> {
                               ? 'Descargar tu cuento en PDF con los resultados'
                               : 'Completa primero las preguntas para descargar tu cuento con los resultados',
                           child: OutlinedButton.icon(
-                            onPressed: (estaCargando || _exportandoPdfId == cuento.id)
+                            onPressed:
+                                (estaCargando || _exportandoPdfId == cuento.id)
                                 ? null
                                 : (esCompletado && intento != null
-                                    ? () => _exportarPdfDesdeTarjeta(cuento, intento)
-                                    : null),
+                                      ? () => _exportarPdfDesdeTarjeta(
+                                          cuento,
+                                          intento,
+                                        )
+                                      : null),
                             icon: _exportandoPdfId == cuento.id
                                 ? const SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Icon(
                                     Icons.picture_as_pdf_rounded,

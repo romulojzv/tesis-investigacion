@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -71,11 +72,19 @@ class PdfExportService {
         style: PdfFontStyle.bold,
       );
 
-      final colorPrincipal = PdfSolidBrush(PdfColor(46, 125, 50)); // Verde bosque
-      final colorTextoOscuro = PdfSolidBrush(PdfColor(46, 32, 28)); // Marrón café
-      final colorSecundario = PdfSolidBrush(PdfColor(230, 81, 0)); // Naranja cálido
+      final colorPrincipal = PdfSolidBrush(
+        PdfColor(46, 125, 50),
+      ); // Verde bosque
+      final colorTextoOscuro = PdfSolidBrush(
+        PdfColor(46, 32, 28),
+      ); // Marrón café
+      final colorSecundario = PdfSolidBrush(
+        PdfColor(230, 81, 0),
+      ); // Naranja cálido
       final colorGris = PdfSolidBrush(PdfColor(117, 117, 117));
-      final colorAcierto = PdfSolidBrush(PdfColor(46, 125, 50)); // Verde acierto
+      final colorAcierto = PdfSolidBrush(
+        PdfColor(46, 125, 50),
+      ); // Verde acierto
       final colorError = PdfSolidBrush(PdfColor(198, 40, 40)); // Rojo error
 
       // =======================================================================
@@ -120,31 +129,32 @@ class PdfExportService {
 
       // Protagonista y datos del estudiante
       final protagonista = _sanitizarParaPdf(cuento.personajePrincipal);
-      portada.graphics.drawString(
-        'Protagonista: $protagonista',
-        fontSubtitulo,
-        brush: colorTextoOscuro,
-        bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 22),
-        format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      );
-      y += 24;
+      if (protagonista.isNotEmpty) {
+        portada.graphics.drawString(
+          'Protagonista: $protagonista',
+          fontSubtitulo,
+          brush: colorTextoOscuro,
+          bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 22),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+        y += 24;
+      }
 
-      final estudiante = _sanitizarParaPdf(intentoQuiz.estudianteNombre);
-      final codigo = _sanitizarParaPdf(intentoQuiz.codigoAcceso);
-      final datosEstudiante = codigo.isNotEmpty
-          ? 'Lector(a): $estudiante (Código: $codigo)'
-          : 'Lector(a): $estudiante';
-      portada.graphics.drawString(
-        datosEstudiante,
-        fontCuerpo,
-        brush: colorTextoOscuro,
-        bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 18),
-        format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      );
-      y += 24;
+      final estudiante = _sanitizarParaPdf(intentoQuiz.estudianteNombre.trim());
+      if (estudiante.isNotEmpty) {
+        portada.graphics.drawString(
+          'Lector(a): $estudiante',
+          fontCuerpo,
+          brush: colorTextoOscuro,
+          bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 18),
+          format: PdfStringFormat(alignment: PdfTextAlignment.center),
+        );
+        y += 24;
+      }
 
       // Ilustración de portada (referencia visual o escena 1)
-      Uint8List? imagenPortada = cuento.referenciaVisualPng ??
+      Uint8List? imagenPortada =
+          cuento.referenciaVisualPng ??
           cuento.referenciaGeneradaEscena1Bytes ??
           cuento.obtenerImagenBytesEscena(1);
 
@@ -155,7 +165,10 @@ class PdfExportService {
           final double maxH = 200;
           final double scaleW = maxW / bitmap.width;
           final double scaleH = maxH / bitmap.height;
-          final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(0.05, 1.0);
+          final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(
+            0.05,
+            1.0,
+          );
           final double drawW = bitmap.width * scale;
           final double drawH = bitmap.height * scale;
           final double drawX = (anchoPagina - drawW) / 2;
@@ -173,7 +186,9 @@ class PdfExportService {
       // Tarjeta de resumen de evaluación en la portada
       final puntaje = intentoQuiz.puntaje ?? 0;
       final totalPreg = intentoQuiz.totalPreguntas;
-      final num porcentajeNum = intentoQuiz.porcentaje ?? ((puntaje / (totalPreg > 0 ? totalPreg : 1)) * 100);
+      final num porcentajeNum =
+          intentoQuiz.porcentaje ??
+          ((puntaje / (totalPreg > 0 ? totalPreg : 1)) * 100);
       final porcentajeTexto = porcentajeNum is double
           ? porcentajeNum.toStringAsFixed(0)
           : porcentajeNum.toString();
@@ -207,7 +222,7 @@ class PdfExportService {
         ..sort((a, b) => a.numero.compareTo(b.numero));
 
       for (final escena in escenasOrdenadas) {
-        final pagina = pdf.pages.add();
+        var pagina = pdf.pages.add();
         final double ancho = pagina.getClientSize().width;
         final double alto = pagina.getClientSize().height;
         double yPos = 14.0;
@@ -231,8 +246,9 @@ class PdfExportService {
         if (imagenBytes == null &&
             escena.imageUrl != null &&
             IlustracionEscenaWidget.esDataUri(escena.imageUrl!)) {
-          imagenBytes =
-              IlustracionEscenaWidget.decodificarDataUri(escena.imageUrl!);
+          imagenBytes = IlustracionEscenaWidget.decodificarDataUri(
+            escena.imageUrl!,
+          );
         }
 
         if (imagenBytes != null && imagenBytes.isNotEmpty) {
@@ -242,7 +258,10 @@ class PdfExportService {
             final double maxH = 200;
             final double scaleW = maxW / bitmap.width;
             final double scaleH = maxH / bitmap.height;
-            final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(0.05, 1.0);
+            final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(
+              0.05,
+              1.0,
+            );
             final double drawW = bitmap.width * scale;
             final double drawH = bitmap.height * scale;
             final double drawX = (ancho - drawW) / 2;
@@ -253,32 +272,58 @@ class PdfExportService {
             );
             yPos += drawH + 14;
           } catch (_) {
-            yPos = _dibujarPlaceholderImagen(pagina, fontDetalle, colorGris, ancho, yPos);
+            yPos = _dibujarPlaceholderImagen(
+              pagina,
+              fontDetalle,
+              colorGris,
+              ancho,
+              yPos,
+            );
           }
         } else {
-          yPos = _dibujarPlaceholderImagen(pagina, fontDetalle, colorGris, ancho, yPos);
+          yPos = _dibujarPlaceholderImagen(
+            pagina,
+            fontDetalle,
+            colorGris,
+            ancho,
+            yPos,
+          );
         }
 
-        // Decisión tomada por el estudiante
+        // Decisión tomada por el estudiante (RF-30 / RF-31: altura dinámica multilínea)
         final decision = cuento.obtenerDecision(escena.numero);
         if (decision != null && decision.opcionSeleccionada.trim().isNotEmpty) {
           final textoDecision = _sanitizarParaPdf(
             'Decisión elegida: "${decision.opcionSeleccionada}"',
           );
 
+          final medida = fontPequenaNegrita.measureString(
+            textoDecision,
+            layoutArea: Size(ancho - 16, 1000),
+          );
+
+          final altoCaja = medida.height + 8;
+
+          // Si el espacio restante antes de la decisión es insuficiente, salto de página
+          if (yPos + altoCaja > alto - 20 && yPos > 50) {
+            pagina = pdf.pages.add();
+            yPos = 14.0;
+          }
+
           pagina.graphics.drawRectangle(
             brush: PdfSolidBrush(PdfColor(255, 243, 224)),
             pen: PdfPen(PdfColor(255, 204, 128), width: 0.8),
-            bounds: Rect.fromLTWH(0, yPos, ancho, 22),
+            bounds: Rect.fromLTWH(0, yPos, ancho, altoCaja),
           );
 
           pagina.graphics.drawString(
             textoDecision,
             fontPequenaNegrita,
             brush: colorSecundario,
-            bounds: Rect.fromLTWH(8, yPos + 4, ancho - 16, 16),
+            bounds: Rect.fromLTWH(8, yPos + 4, ancho - 16, medida.height),
           );
-          yPos += 28;
+
+          yPos += altoCaja + 6.0;
         }
 
         // Texto narrativo de la escena
@@ -324,8 +369,8 @@ class PdfExportService {
       final msgDesempeno = puntaje == 5
           ? '¡Excelente! Comprensión completa de la historia.'
           : (puntaje >= 3
-              ? '¡Buen trabajo! Demostraste una buena retención y análisis lector.'
-              : '¡Continúa practicando tu comprensión con nuevas lecturas!');
+                ? '¡Buen trabajo! Demostraste una buena retención y análisis lector.'
+                : '¡Continúa practicando tu comprensión con nuevas lecturas!');
 
       paginaEval.graphics.drawString(
         'Puntaje Final: $puntaje de $totalPreg ($porcentajeTexto % de aciertos)',
@@ -359,7 +404,9 @@ class PdfExportService {
         );
 
         final explicacionLimpia = resp.explicacion.trim().isNotEmpty
-            ? _sanitizarParaPdf('Explicación pedagógica: ${resp.explicacion.trim()}')
+            ? _sanitizarParaPdf(
+                'Explicación pedagógica: ${resp.explicacion.trim()}',
+              )
             : '';
         final sizeExpl = explicacionLimpia.isNotEmpty
             ? fontDetalle.measureString(
@@ -504,7 +551,12 @@ class PdfExportService {
 
           final layoutExpl = elemExplicacion.draw(
             page: paginaEval,
-            bounds: Rect.fromLTWH(8, yEval + 6, anchoEval - 16, altoEval - yEval - 10),
+            bounds: Rect.fromLTWH(
+              8,
+              yEval + 6,
+              anchoEval - 16,
+              altoEval - yEval - 10,
+            ),
             format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
           );
 
@@ -589,7 +641,10 @@ class PdfExportService {
 
     // Remover emojis y símbolos especiales que están fuera del mapa ISO-8859-1 de Helvetica
     limpio = limpio.replaceAll(
-      RegExp(r'[\u{1F300}-\u{1FAFF}|\u{2600}-\u{27BF}|\u{2000}-\u{206F}]', unicode: true),
+      RegExp(
+        r'[\u{1F300}-\u{1FAFF}|\u{2600}-\u{27BF}|\u{2000}-\u{206F}]',
+        unicode: true,
+      ),
       '',
     );
 

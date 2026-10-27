@@ -163,13 +163,16 @@ class QuizRepositorySupabase implements QuizRepository {
       if (lista == null || lista.isEmpty) return null;
 
       // Regla consistente: seleccionar preferentemente el último intento completado y autorizado
-      final completado = lista.firstWhere(
-        (item) => item['estado'] == 'completado',
-        orElse: () => null,
-      );
-
-      final elegido = completado ?? lista.first;
-      return QuizAttemptSummary.fromJson(elegido as Map<String, dynamic>);
+      final filas = lista.cast<Map<String, dynamic>>();
+      Map<String, dynamic>? completado;
+      for (final item in filas) {
+        if (item['estado'] == 'completado') {
+          completado = item;
+          break;
+        }
+      }
+      final elegido = completado ?? filas.first;
+      return QuizAttemptSummary.fromJson(elegido);
     } catch (e) {
       debugPrint(
         '[QuizRepositorySupabase] Error cargando resumen quiz por cuento: $e',

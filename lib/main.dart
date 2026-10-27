@@ -962,6 +962,8 @@ class _HomeRouterState extends State<_HomeRouter> {
           onVolver: () => _irInicio(tab: 1),
           onFinalizado: () => _irInicio(tab: 1),
           cuento: cuento,
+          estudianteNombre: perfil.nombre,
+          codigoAcceso: perfil.codigoAcceso,
         );
 
       // =====================================================

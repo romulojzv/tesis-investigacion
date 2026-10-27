@@ -1,0 +1,54 @@
+================================================================================
+EVIDENCIA DE PRUEBAS AUTOMATIZADAS FLUTTER - TESIS CUENTOS MÁGICOS
+================================================================================
+Fecha de ejecución: 2026-10-26 21:09:18
+Entorno del sistema: Windows 11 Enterprise (10.0.26100)
+Rama Git: feature/completar-requisitos-tesis
+HEAD Git antes de commit: 87d0cade5625f4a04d61ad40ea08e7eb13a420f5
+Versión Flutter / Dart:
+Flutter 3.47.6 â€¢ channel stable â€¢ https://github.com/flutter/flutter.git
+Framework â€¢ revision 5fc346839b (4 weeks ago) â€¢ 2026-09-30 15:02:49 -0700
+Engine â€¢ hash b8c8d3d8d5d0095127057f8a29ca8cc53da2167c (revision 692136cb65) (27 days ago) â€¢ 2026-09-30 00:56:59.000Z
+Tools â€¢ Dart 3.13.5 â€¢ DevTools 2.60.0
+================================================================================
+Comando 1: flutter test test/pdf_export_service_test.dart test/story_view_pdf_export_test.dart test/quiz_feedback_immediate_test.dart
+--------------------------------------------------------------------------------
+00:00 +0: loading c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart
+00:00 +0: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Lanza StateError si el cuento no tiene escenas o no estÃ¡ finalizado
+00:00 +1: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Lanza StateError si el intento de quiz es null o estÃ¡ en progreso (regla obligatoria)
+00:00 +2: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Genera un PDF vÃ¡lido (%PDF) incluyendo evaluaciÃ³n de comprensiÃ³n con las 5 preguntas
+00:00 +3: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Genera PDF con ilustraciÃ³n real de alta resoluciÃ³n (no 1x1 pÃ­xel)
+00:00 +4: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Tolerancia a fallos: genera PDF aun con imagen corrupta o data-uri invÃ¡lido
+00:00 +5: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Conserva y muestra la distribuciÃ³n 2-2-1 de niveles pedagÃ³gicos (literal, inferencial, crÃ­tico-reflexivo)
+00:01 +6: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Representa explicaciones pedagÃ³gicas extensas completas en mÃºltiples lÃ­neas sin truncar texto
+00:01 +7: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz RF-30 / RF-31: DecisiÃ³n extensa de mÃ¡s de 200 caracteres se exporta completa en mÃºltiples lÃ­neas sin truncamiento
+00:01 +8: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz RF-30 / RF-31: Portada diferencia al protagonista del lector y evita duplicar nombres
+00:01 +9: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz Ajuste de privacidad: el cÃ³digo de acceso nunca aparece en el PDF aunque QuizAttemptSummary lo contenga
+00:01 +10: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz RF-30 / RF-31: Nombre ausente de lector no genera etiqueta huÃ©rfana ni datos ficticios
+00:01 +11: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de ExportaciÃ³n y Guardado de PDF con ValidaciÃ³n de Quiz RF-30 / RF-31: DecisiÃ³n narrativa larga (~200 caracteres) se calcula con altura dinÃ¡mica y se extrae completa sin truncamiento
+00:02 +12: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: BotÃ³n Exportar PDF en StoryView con Control de Quiz No muestra botÃ³n Exportar PDF si la escena NO es final
+00:03 +13: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta Muestra nivel de comprensiÃ³n y permite seleccionar alternativa
+00:04 +14: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: BotÃ³n Exportar PDF en StoryView con Control de Quiz BotÃ³n Exportar PDF estÃ¡ deshabilitado y muestra advertencia si el quiz no estÃ¡ completado
+00:04 +15: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta Confirmar respuesta correcta muestra banner verde y explicaciÃ³n para primaria
+00:04 +16: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta Confirmar respuesta correcta muestra banner verde y explicaciÃ³n para primaria
+00:04 +17: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta Inmutabilidad: respuesta confirmada bloquea cambios de selecciÃ³n
+00:04 +18: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta Respuesta incorrecta muestra banner explicativo y revela alternativa correcta
+00:05 +19: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta ReanudaciÃ³n: cuestionario con respuestas previas carga estado y avanza a la pendiente
+00:05 +20: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta FinalizaciÃ³n: al responder la pregunta 5 permite ver el resultado final
+00:05 +21: c:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: RetroalimentaciÃ³n inmediata y persistencia por pregunta QuizView: recibe estudianteNombre del perfil autenticado y habilita exportaciÃ³n PDF de cuento
+00:05 +22: All tests passed!
+Código de retorno Comando 1: 0
+
+================================================================================
+Comando 2: flutter analyze
+--------------------------------------------------------------------------------
+Analyzing tesis_investigacion...                                
+No issues found! (ran in 7.8s)
+Código de retorno Comando 2: 0
+
+================================================================================
+RESUMEN DE EJECUCIÓN:
+Test Exit Code: 0
+Analyze Exit Code: 0
+Estado General: EXITOSO (TODAS LAS PRUEBAS Y ANÁLISIS APROBADOS)
+================================================================================

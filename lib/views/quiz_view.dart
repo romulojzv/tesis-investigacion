@@ -1,6 +1,7 @@
 // lib/views/quiz_view.dart
 
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -19,6 +20,8 @@ class QuizView extends StatefulWidget {
   final VoidCallback? onFinalizado;
   final QuizResult? resultadoInicial;
   final Cuento? cuento;
+  final String? estudianteNombre;
+  final String? codigoAcceso;
 
   const QuizView({
     super.key,
@@ -29,6 +32,8 @@ class QuizView extends StatefulWidget {
     this.onFinalizado,
     this.resultadoInicial,
     this.cuento,
+    this.estudianteNombre,
+    this.codigoAcceso,
   });
 
   @override
@@ -92,8 +97,9 @@ class _QuizViewState extends State<QuizView> {
             final primerPendiente = _preguntas.indexWhere(
               (p) => !_retroalimentaciones.containsKey(p.numero),
             );
-            _indiceActual =
-                primerPendiente < 0 ? _preguntas.length - 1 : primerPendiente;
+            _indiceActual = primerPendiente < 0
+                ? _preguntas.length - 1
+                : primerPendiente;
           }
           _cargando = false;
         });
@@ -141,11 +147,12 @@ class _QuizViewState extends State<QuizView> {
     if (indice == null || _intentoId == null) return;
     setState(() => _enviando = true);
     try {
-      final r = await (widget.quizService as QuizFeedbackService).responderPregunta(
-        intentoId: _intentoId!,
-        numero: pregunta.numero,
-        indiceSeleccionado: indice,
-      );
+      final r = await (widget.quizService as QuizFeedbackService)
+          .responderPregunta(
+            intentoId: _intentoId!,
+            numero: pregunta.numero,
+            indiceSeleccionado: indice,
+          );
       if (!mounted) return;
       setState(() {
         _retroalimentaciones[pregunta.numero] = r;
@@ -211,7 +218,9 @@ class _QuizViewState extends State<QuizView> {
       try {
         final estado = await widget.quizService.generarQuiz(widget.cuentoId);
         if (!estado.estaCompletado || estado.resultadoExistente == null) {
-          throw StateError('El cuestionario todavía tiene respuestas pendientes.');
+          throw StateError(
+            'El cuestionario todavía tiene respuestas pendientes.',
+          );
         }
         if (mounted) {
           setState(() {
@@ -302,15 +311,19 @@ class _QuizViewState extends State<QuizView> {
     setState(() => _exportandoPdf = true);
 
     try {
+      final nombreLector =
+          (widget.estudianteNombre != null &&
+              widget.estudianteNombre!.trim().isNotEmpty)
+          ? widget.estudianteNombre!.trim()
+          : '';
+
       final summary = QuizAttemptSummary(
         intentoId: res.intentoId,
         cuentoId: widget.cuentoId,
         cuentoTitulo: widget.tituloCuento,
         estudianteId: '',
-        estudianteNombre: cuento.personajePrincipal.isNotEmpty
-            ? cuento.personajePrincipal
-            : 'Estudiante',
-        codigoAcceso: '',
+        estudianteNombre: nombreLector,
+        codigoAcceso: widget.codigoAcceso?.trim() ?? '',
         estado: 'completado',
         puntaje: res.puntaje,
         totalPreguntas: res.total,
@@ -344,19 +357,27 @@ class _QuizViewState extends State<QuizView> {
       if (!mounted) return;
 
       if (uriSeleccionado != null) {
-        try {
-          if (uriSeleccionado.scheme == 'file') {
-            final file = File(uriSeleccionado.toFilePath());
-            if (!await file.exists() || await file.length() == 0) {
-              await file.writeAsBytes(bytes, flush: true);
-            }
-          }
-        } catch (_) {}
+        // Verificar el archivo antes de informar exito.
+        // Si falla, el catch exterior mostrara el error al estudiante.
+        if (uriSeleccionado.scheme != 'file') {
+          throw StateError('No se puede comprobar la ruta del PDF guardado.');
+        }
+        final archivoGuardado = File(uriSeleccionado.toFilePath());
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() == 0) {
+          await archivoGuardado.writeAsBytes(bytes, flush: true);
+        }
+        if (!await archivoGuardado.exists() ||
+            await archivoGuardado.length() != bytes.length) {
+          throw StateError('No se pudo verificar el PDF guardado.');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Cuento guardado con éxito en tu computadora! 📄✨'),
+              content: Text(
+                '¡Cuento guardado con éxito en tu computadora! 📄✨',
+              ),
               backgroundColor: Color(0xFF2E7D32),
               duration: Duration(seconds: 4),
             ),
@@ -667,10 +688,11 @@ class _QuizViewState extends State<QuizView> {
                           boxShadow: [
                             if (estaSeleccionada || esOpcionCorrecta)
                               BoxShadow(
-                                color: (esOpcionCorrecta
-                                        ? const Color(0xFF4CAF50)
-                                        : const Color(0xFFF39C12))
-                                    .withValues(alpha: 0.2),
+                                color:
+                                    (esOpcionCorrecta
+                                            ? const Color(0xFF4CAF50)
+                                            : const Color(0xFFF39C12))
+                                        .withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
@@ -701,8 +723,8 @@ class _QuizViewState extends State<QuizView> {
                                 textoOpcion,
                                 style: TextStyle(
                                   fontSize: 15,
-                                  fontWeight: (estaSeleccionada ||
-                                          esOpcionCorrecta)
+                                  fontWeight:
+                                      (estaSeleccionada || esOpcionCorrecta)
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                   color: const Color(0xFF3E2723),
@@ -770,8 +792,7 @@ class _QuizViewState extends State<QuizView> {
                   icon: const Icon(Icons.arrow_forward, size: 18),
                   label: Text(
                     widget.quizService is QuizFeedbackService &&
-                            !_retroalimentaciones
-                                .containsKey(pregunta.numero)
+                            !_retroalimentaciones.containsKey(pregunta.numero)
                         ? 'Comprobar respuesta'
                         : 'Siguiente',
                   ),
@@ -804,11 +825,12 @@ class _QuizViewState extends State<QuizView> {
                     _enviando
                         ? 'Corrigiendo...'
                         : (widget.quizService is QuizFeedbackService
-                            ? (_retroalimentaciones
-                                    .containsKey(pregunta.numero)
-                                ? 'Ver mi resultado'
-                                : 'Comprobar respuesta')
-                            : 'Finalizar preguntas'),
+                              ? (_retroalimentaciones.containsKey(
+                                      pregunta.numero,
+                                    )
+                                    ? 'Ver mi resultado'
+                                    : 'Comprobar respuesta')
+                              : 'Finalizar preguntas'),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
@@ -870,9 +892,7 @@ class _QuizViewState extends State<QuizView> {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
-                  color: ok
-                      ? const Color(0xFF1B5E20)
-                      : const Color(0xFFBF360C),
+                  color: ok ? const Color(0xFF1B5E20) : const Color(0xFFBF360C),
                 ),
               ),
             ],
@@ -1218,7 +1238,9 @@ class _QuizViewState extends State<QuizView> {
               children: [
                 if (widget.cuento != null)
                   ElevatedButton.icon(
-                    onPressed: _exportandoPdf ? null : _exportarPdfDesdeResultados,
+                    onPressed: _exportandoPdf
+                        ? null
+                        : _exportarPdfDesdeResultados,
                     icon: _exportandoPdf
                         ? const SizedBox(
                             width: 18,
