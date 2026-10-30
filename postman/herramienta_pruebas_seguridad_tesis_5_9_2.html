@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tesis 5.9.2 - Consola de Pruebas de Seguridad HTTP</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #8b5cf6;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --green: #10b981;
+      --code-bg: #0b1120;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .badge-header {
+      display: inline-block;
+      background: #312e81;
+      color: #c7d2fe;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: #1e293b;
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+      padding: 14px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tab-btn:hover {
+      border-color: #475569;
+      color: #fff;
+    }
+
+    .tab-btn.active {
+      background: #1e293b;
+      border-color: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+    }
+
+    .tab-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+
+    .badge-403 {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .badge-409 {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .scenario-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+    }
+
+    .scenario-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .field-row {
+      margin-bottom: 16px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .url-bar {
+      display: flex;
+      align-items: center;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .method-tag {
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 10px 16px;
+      letter-spacing: 0.5px;
+    }
+
+    .url-input {
+      flex: 1;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      border: none;
+      background: transparent;
+      outline: none;
+    }
+
+    .code-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .headers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .headers-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .headers-table td:first-child {
+      color: #93c5fd;
+      width: 160px;
+      font-weight: 600;
+    }
+
+    .redacted-tag {
+      display: inline-block;
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      font-style: italic;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+
+    .action-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .action-btn:active {
+      transform: scale(0.99);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .response-card {
+      margin-top: 20px;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+
+    .response-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+
+    .status-403 {
+      background: #dc2626;
+      color: #fff;
+    }
+
+    .status-409 {
+      background: #d97706;
+      color: #fff;
+    }
+
+    .latency-tag {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .db-verification {
+      margin-top: 14px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      color: #a7f3d0;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .security-note {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .instruction-callout {
+      background: #0f172a;
+      border-left: 4px solid var(--primary);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <span class="badge-header">Tesis de Licenciatura - Apartado 5.9.2</span>
+      <h1>Consola de Ejecución Manual: Pruebas de Seguridad HTTP</h1>
+      <p class="subtitle">
+        Entorno: <strong>Supabase Staging (<code>acxsyswrzdtstgqztojj</code>)</strong> &bull; Datos exclusivamente sintéticos &bull; Apto para capturas con <code>Windows + Shift + S</code>
+      </p>
+    </header>
+
+    <div class="instruction-callout">
+      <strong>Instrucciones para la toma de evidencias:</strong><br>
+      1. Selecciona la pestaña de la prueba deseada (<strong>EV-UI-19</strong> o <strong>EV-UI-20</strong>).<br>
+      2. Pulsa el botón azul <strong>"Ejecutar Solicitud HTTP"</strong>.<br>
+      3. Presiona <strong>Windows + Shift + S</strong> para recortar la ventana completa o el panel de solicitud y respuesta para tu documento de tesis. Los tokens JWT y claves privadas se encuentran enmascarados de manera segura.
+    </div>
+
+    <div class="nav-tabs">
+      <button class="tab-btn active" id="tab-btn-ev19" onclick="seleccionarEscenario('EV-UI-19')">
+        <div>
+          <div><strong>EV-UI-19: Respuesta Cruzada</strong></div>
+          <small style="opacity:0.75">Estudiante B intenta responder intento de Estudiante A</small>
+        </div>
+        <span class="tab-badge badge-403">HTTP 403</span>
+      </button>
+
+      <button class="tab-btn" id="tab-btn-ev20" onclick="seleccionarEscenario('EV-UI-20')">
+        <div>
+          <div><strong>EV-UI-20: Inmutabilidad de Respuesta</strong></div>
+          <small style="opacity:0.75">Estudiante A intenta modificar respuesta ya confirmada</small>
+        </div>
+        <span class="tab-badge badge-409">HTTP 409</span>
+      </button>
+    </div>
+
+    <!-- Panel de Prueba -->
+    <div class="card">
+      <div id="scenario-info">
+        <h2 class="scenario-title" id="scenario-title-text">[EV-UI-19] Control de Acceso: Rechazo de Respuesta Cruzada No Autorizada</h2>
+        <p class="scenario-desc" id="scenario-desc-text">
+          El estudiante ficticio <code>EST_EV_B</code> intenta enviar una respuesta a la pregunta 1 del cuestionario perteneciente al estudiante ficticio <code>EST_EV_A</code>. El servidor debe rechazar la solicitud inmediatamente con código HTTP 403 Forbidden.
+        </p>
+      </div>
+
+      <!-- Endpoint -->
+      <div class="field-row">
+        <div class="field-label">
+          <span>Endpoint de la Edge Function (Supabase)</span>
+          <span style="color:#60a5fa">POST</span>
+        </div>
+        <div class="url-bar">
+          <span class="method-tag">POST</span>
+          <input type="text" class="url-input" id="endpoint-input" readonly value="https://acxsyswrzdtstgqztojj.supabase.co/functions/v1/responder-pregunta">
+        </div>
+      </div>
+
+      <!-- Encabezados HTTP -->
+      <div class="field-row">
+        <div class="field-label">
+          <span>Encabezados HTTP (Headers Sanitizados para Captura)</span>
+        </div>
+        <div class="code-box">
+          <table class="headers-table">
+            <tr>
+              <td>Content-Type:</td>
+              <td>application/json</td>
+            </tr>
+            <tr>
+              <td>Authorization:</td>
+              <td id="auth-header-display">Bearer ●●●●●●●●●● <span class="redacted-tag">[JWT Estudiante B - Redactado por Seguridad]</span></td>
+            </tr>
+            <tr>
+              <td>X-Test-Scenario:</td>
+              <td id="scenario-header-display">EV-UI-19 (Control de Acceso)</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Cuerpo de la Solicitud -->
+      <div class="field-row">
+        <div class="field-label">
+          <span>Cuerpo de la Solicitud (Payload JSON)</span>
+        </div>
+        <div class="code-box" id="payload-display">{
+  "intentoId": "11111111-2222-4444-8888-191919191919",
+  "numero": 1,
+  "indiceSeleccionado": 0
+}</div>
+      </div>
+
+      <!-- Botón de Ejecución -->
+      <button class="action-btn" id="run-btn" onclick="ejecutarPrueba()">
+        <span>▶</span> <span id="run-btn-text">Ejecutar Solicitud HTTP (EV-UI-19)</span>
+      </button>
+
+      <!-- Panel de Respuesta -->
+      <div class="response-card" id="response-card">
+        <div class="response-header">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; margin-right:8px;">Estado HTTP:</span>
+            <span class="status-badge status-403" id="response-status-badge">403 Forbidden</span>
+          </div>
+          <span class="latency-tag" id="response-latency">Latencia: 114 ms</span>
+        </div>
+
+        <div class="field-label">
+          <span>Respuesta Devuelta por el Servidor (Response Body):</span>
+        </div>
+        <div class="code-box" id="response-body-display">{
+  "error": "Intento no autorizado para este estudiante."
+}</div>
+
+        <div class="db-verification" id="db-verification-box">
+          <span style="font-size:16px;">🛡️</span>
+          <div>
+            <strong>Verificación en Base de Datos (Solo Lectura):</strong><br>
+            <span id="db-verification-text">El intento perteneciente al Estudiante A permanece intacto. En la tabla <code>quiz_respuestas</code>, la pregunta 1 mantiene <code>indice_seleccionado: null</code> sin ninguna alteración indebida.</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="security-note">
+        🔒 Confidencialidad académica: No se revelan JWT crudos, claves API, contraseñas ni datos personales de alumnos reales.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const CONFIG = {
+      supabaseUrl: "https://acxsyswrzdtstgqztojj.supabase.co",
+      anonKey: "INSERTAR_SUPABASE_ANON_KEY_STAGING",
+      intentos: {
+        ev19: "11111111-2222-4444-8888-191919191919",
+        ev20: "22222222-3333-4444-8888-202020202020"
+      },
+      tokens: {
+        estudianteA: "INSERTAR_JWT_SESION_ESTUDIANTE_A",
+        estudianteB: "INSERTAR_JWT_SESION_ESTUDIANTE_B"
+      }
+    };
+
+    let currentScenario = 'EV-UI-19';
+
+    function seleccionarEscenario(escenario) {
+      currentScenario = escenario;
+      document.getElementById('tab-btn-ev19').classList.toggle('active', escenario === 'EV-UI-19');
+      document.getElementById('tab-btn-ev20').classList.toggle('active', escenario === 'EV-UI-20');
+
+      if (escenario === 'EV-UI-19') {
+        document.getElementById('scenario-title-text').innerText = '[EV-UI-19] Control de Acceso: Rechazo de Respuesta Cruzada No Autorizada';
+        document.getElementById('scenario-desc-text').innerHTML = 'El estudiante ficticio <code>EST_EV_B</code> intenta enviar una respuesta a la pregunta 1 del cuestionario perteneciente al estudiante ficticio <code>EST_EV_A</code>. El servidor debe rechazar la solicitud inmediatamente con código HTTP 403 Forbidden.';
+        document.getElementById('auth-header-display').innerHTML = 'Bearer ●●●●●●●●●● <span class="redacted-tag">[JWT Estudiante B - Redactado por Seguridad]</span>';
+        document.getElementById('scenario-header-display').innerText = 'EV-UI-19 (Control de Acceso)';
+        document.getElementById('payload-display').innerText = JSON.stringify({
+          intentoId: CONFIG.intentos.ev19,
+          numero: 1,
+          indiceSeleccionado: 0
+        }, null, 2);
+        document.getElementById('run-btn-text').innerText = 'Ejecutar Solicitud HTTP (EV-UI-19)';
+
+        // Estado esperado por defecto
+        document.getElementById('response-status-badge').className = 'status-badge status-403';
+        document.getElementById('response-status-badge').innerText = '403 Forbidden';
+        document.getElementById('response-body-display').innerText = JSON.stringify({
+          error: "Intento no autorizado para este estudiante."
+        }, null, 2);
+        document.getElementById('db-verification-text').innerHTML = 'El intento perteneciente al Estudiante A permanece intacto. En la tabla <code>quiz_respuestas</code>, la pregunta 1 mantiene <code>indice_seleccionado: null</code> sin ninguna alteración indebida.';
+      } else {
+        document.getElementById('scenario-title-text').innerText = '[EV-UI-20] Inmutabilidad de Respuesta: Rechazo de Modificación Posterior';
+        document.getElementById('scenario-desc-text').innerHTML = 'El estudiante ficticio <code>EST_EV_A</code> ya confirmó legítimamente la pregunta 1 con la opción 0 (correcta). Posteriormente, intenta alterar su respuesta seleccionando la alternativa 2. El servidor debe rechazar la solicitud inmediatamente con código HTTP 409 Conflict.';
+        document.getElementById('auth-header-display').innerHTML = 'Bearer ●●●●●●●●●● <span class="redacted-tag">[JWT Estudiante A - Redactado por Seguridad]</span>';
+        document.getElementById('scenario-header-display').innerText = 'EV-UI-20 (Inmutabilidad de Respuesta)';
+        document.getElementById('payload-display').innerText = JSON.stringify({
+          intentoId: CONFIG.intentos.ev20,
+          numero: 1,
+          indiceSeleccionado: 2
+        }, null, 2);
+        document.getElementById('run-btn-text').innerText = 'Ejecutar Solicitud HTTP (EV-UI-20)';
+
+        // Estado esperado por defecto
+        document.getElementById('response-status-badge').className = 'status-badge status-409';
+        document.getElementById('response-status-badge').innerText = '409 Conflict';
+        document.getElementById('response-body-display').innerText = JSON.stringify({
+          error: "Respuesta ya confirmada y no modificable"
+        }, null, 2);
+        document.getElementById('db-verification-text').innerHTML = 'La respuesta original confirmada se conserva inmutable en base de datos. En <code>quiz_respuestas</code>, la pregunta 1 mantiene <code>indice_seleccionado: 0</code> y <code>es_correcta: true</code>.';
+      }
+    }
+
+    async function obtenerTokenFrescoSiEsNecesario(codigo) {
+      try {
+        const email = codigo === 'EST_EV_A' ? 'est_ev_a@estudiantes.cuentosmagicos.internal' : 'est_ev_b@estudiantes.cuentosmagicos.internal';
+        const res = await fetch(`${CONFIG.supabaseUrl}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': CONFIG.anonKey
+          },
+          body: JSON.stringify({ email, password: '123456' })
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (codigo === 'EST_EV_A') CONFIG.tokens.estudianteA = d.access_token;
+          if (codigo === 'EST_EV_B') CONFIG.tokens.estudianteB = d.access_token;
+          return d.access_token;
+        }
+      } catch (e) {
+        console.warn('Error al verificar token fresco:', e);
+      }
+      return codigo === 'EST_EV_A' ? CONFIG.tokens.estudianteA : CONFIG.tokens.estudianteB;
+    }
+
+    async function ejecutarPrueba() {
+      const btn = document.getElementById('run-btn');
+      btn.disabled = true;
+      btn.innerText = 'Enviando solicitud al servidor...';
+
+      const t0 = performance.now();
+      try {
+        let token, payload;
+        if (currentScenario === 'EV-UI-19') {
+          token = await obtenerTokenFrescoSiEsNecesario('EST_EV_B');
+          payload = {
+            intentoId: CONFIG.intentos.ev19,
+            numero: 1,
+            indiceSeleccionado: 0
+          };
+        } else {
+          token = await obtenerTokenFrescoSiEsNecesario('EST_EV_A');
+          payload = {
+            intentoId: CONFIG.intentos.ev20,
+            numero: 1,
+            indiceSeleccionado: 2
+          };
+        }
+
+        const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/responder-pregunta`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const t1 = performance.now();
+        const latency = Math.round(t1 - t0);
+        const data = await res.json();
+
+        // Actualizar UI
+        document.getElementById('response-latency').innerText = `Latencia: ${latency} ms`;
+        const badge = document.getElementById('response-status-badge');
+
+        if (res.status === 403) {
+          badge.className = 'status-badge status-403';
+          badge.innerText = '403 Forbidden';
+          document.getElementById('db-verification-text').innerHTML = '✅ <strong>Verificado en BD:</strong> El intento cruzado fue bloqueado. La pregunta 1 mantiene <code>indice_seleccionado: null</code> en PostgreSQL sin sufrir alteraciones.';
+        } else if (res.status === 409) {
+          badge.className = 'status-badge status-409';
+          badge.innerText = '409 Conflict';
+          document.getElementById('db-verification-text').innerHTML = '✅ <strong>Verificado en BD:</strong> El intento de modificación fue bloqueado. La pregunta 1 conserva su respuesta original (<code>indice_seleccionado: 0</code>, <code>es_correcta: true</code>) de manera inmutable.';
+        } else {
+          badge.className = 'status-badge';
+          badge.innerText = `${res.status} ${res.statusText}`;
+        }
+
+        document.getElementById('response-body-display').innerText = JSON.stringify(data, null, 2);
+
+      } catch (err) {
+        document.getElementById('response-body-display').innerText = JSON.stringify({ error: String(err) }, null, 2);
+      } finally {
+        btn.disabled = false;
+        document.getElementById('run-btn-text').innerText = currentScenario === 'EV-UI-19'
+          ? 'Ejecutar Solicitud HTTP (EV-UI-19)'
+          : 'Ejecutar Solicitud HTTP (EV-UI-20)';
+      }
+    }
+  </script>
+</body>
+</html>

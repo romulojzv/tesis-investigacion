@@ -21,6 +21,12 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
+// Salvaguarda: Rechazar ejecución contra entornos de producción
+if (SUPABASE_URL.toLowerCase().includes('production') || process.env.ENVIRONMENT === 'production') {
+  console.error('⛔ SEGURIDAD: Ejecución abortada. Este script no está autorizado para ejecutarse contra entornos de producción.');
+  process.exit(1);
+}
+
 if (!nombre || !email || !password) {
   console.error('\nERROR: Las credenciales deben proporcionarse exclusivamente vía variables de entorno:');
   console.error('  DOCENTE_NOMBRE="Nombre del Docente"');

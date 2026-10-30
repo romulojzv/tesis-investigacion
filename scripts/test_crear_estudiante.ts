@@ -1,5 +1,6 @@
 // scripts/test_crear_estudiante.ts
 import { createClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 
 if (typeof process.loadEnvFile === 'function') {
   try {
@@ -16,6 +17,25 @@ const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY) {
   console.error('ERROR: Faltan variables SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY o SUPABASE_ANON_KEY.');
   process.exit(1);
+}
+
+// Salvaguarda: Aceptar exclusivamente el hostname exacto de Staging con HTTPS
+try {
+  const parsed = new URL(SUPABASE_URL);
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'acxsyswrzdtstgqztojj.supabase.co' || (parsed.port && parsed.port !== '443') || parsed.username || parsed.password) {
+    throw new Error(`Destino no autorizado: '${parsed.origin}'. Se requiere exclusivamente 'https://acxsyswrzdtstgqztojj.supabase.co'.`);
+  }
+} catch (err: any) {
+  console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
+  process.exit(1);
+}
+
+function generarPasswordSegura(rol: string): string {
+  return `Test_${rol}_${crypto.randomBytes(12).toString('base64url')}!9aA`;
+}
+
+function generarPinSeguro(): string {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -72,7 +92,7 @@ async function probarRollbackCompensatorio(params: {
   codigoLocal: string;
 }) {
   const emailSintetico = `rollback.test.${Date.now()}@estudiantes.cuentosmagicos.internal`;
-  const pin = '839201';
+  const pin = generarPinSeguro();
 
   // 1. Crear en Auth
   const { data: authUser, error: authErr } = await adminClient.auth.admin.createUser({
@@ -105,8 +125,9 @@ async function runTestSuite() {
   console.log('🚀 INICIANDO TESTS E2E REMOTOS DE "crear-estudiante"...');
   console.log(`📡 URL Objetivo: ${edgeFunctionUrl}`);
 
-  const passDoc = 'DocSeguroPass2026!';
-  const passEst = '482910';
+  const passDocA = process.env.TEST_DOCENTE_A_PASSWORD || generarPasswordSegura('DocA');
+  const passDocB = process.env.TEST_DOCENTE_B_PASSWORD || generarPasswordSegura('DocB');
+  const passEst = process.env.TEST_ESTUDIANTE_PIN || generarPinSeguro();
   const emailDocA = `test.e2e.doc.a.${Date.now()}@cuentosmagicos.internal`;
   const emailDocB = `test.e2e.doc.b.${Date.now()}@cuentosmagicos.internal`;
   const emailEst = `test.e2e.est.${Date.now()}@estudiantes.cuentosmagicos.internal`;
@@ -120,14 +141,14 @@ async function runTestSuite() {
     // SETUP: Creación de usuarios y aulas TEMPORALES para la suite
     console.log('\n📦 Creando usuarios y aulas temporales para la suite...');
     const { data: uDocA, error: errDocA } = await adminClient.auth.admin.createUser({
-      email: emailDocA, password: passDoc, email_confirm: true,
+      email: emailDocA, password: passDocA, email_confirm: true,
       app_metadata: { rol: 'docente' }, user_metadata: { nombre: 'Docente E2E A' },
     });
     if (errDocA) throw errDocA;
     userDocAId = uDocA.user!.id;
 
     const { data: uDocB, error: errDocB } = await adminClient.auth.admin.createUser({
-      email: emailDocB, password: passDoc, email_confirm: true,
+      email: emailDocB, password: passDocB, email_confirm: true,
       app_metadata: { rol: 'docente' }, user_metadata: { nombre: 'Docente E2E B' },
     });
     if (errDocB) throw errDocB;
@@ -143,7 +164,7 @@ async function runTestSuite() {
 
     // Login para obtener JWTs reales del docente y del estudiante
     const clientDocA = createClient(SUPABASE_URL!, ANON_KEY!, { auth: { persistSession: false } });
-    const { data: sesDocA } = await clientDocA.auth.signInWithPassword({ email: emailDocA, password: passDoc });
+    const { data: sesDocA } = await clientDocA.auth.signInWithPassword({ email: emailDocA, password: passDocA });
     tokenDocA = sesDocA.session!.access_token;
 
     const clientEst = createClient(SUPABASE_URL!, ANON_KEY!, { auth: { persistSession: false } });

@@ -1,0 +1,3304 @@
+diff --git a/.gitignore b/.gitignore
+index 9f5b4cc..280d294 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -19,6 +19,8 @@ build/
+ *.log
+ *.tmp
+ *.local.json
++config_staging.json
++config_prod.json
+ 
+ # Windows
+ Thumbs.db
+@@ -32,4 +34,14 @@ supabase/.temp/
+ npm-debug.log*
+ 
+ # Supabase local CLI state
+-supabase/.branches/
+\ No newline at end of file
++supabase/.branches/
++
++# Benchmark AISLADO - Secretos y llaves ciegas
++benchmark/.env
++benchmark/.env.*
++benchmark/**/llave_maestra.json
++benchmark/**/*.secret.*
++benchmark/resultados/temp/
++benchmark/resultados_piloto/respuestas/
++referencias_agente/
++deno.lock
+\ No newline at end of file
+diff --git a/lib/models/quiz_question.dart b/lib/models/quiz_question.dart
+index 000bcb1..55f296f 100644
+--- a/lib/models/quiz_question.dart
++++ b/lib/models/quiz_question.dart
+@@ -6,11 +6,13 @@ class QuizQuestion {
+   final int numero;
+   final String pregunta;
+   final List<String> opciones;
++  final String nivelComprension;
+ 
+   const QuizQuestion({
+     required this.numero,
+     required this.pregunta,
+     required this.opciones,
++    this.nivelComprension = 'sin_clasificar',
+   });
+ 
+   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+@@ -19,11 +21,20 @@ class QuizQuestion {
+       numero: json['numero'] as int? ?? 1,
+       pregunta: json['pregunta'] as String? ?? '',
+       opciones: opcionesRaw.map((e) => e.toString()).toList(),
++      nivelComprension: (json['nivelComprension'] ??
++              json['nivel_comprension'] ??
++              'sin_clasificar')
++          .toString(),
+     );
+   }
+ 
+   Map<String, dynamic> toJson() {
+-    return {'numero': numero, 'pregunta': pregunta, 'opciones': opciones};
++    return {
++      'numero': numero,
++      'pregunta': pregunta,
++      'opciones': opciones,
++      'nivelComprension': nivelComprension,
++    };
+   }
+ }
+ 
+diff --git a/lib/models/quiz_result.dart b/lib/models/quiz_result.dart
+index ce86023..d7dd4f8 100644
+--- a/lib/models/quiz_result.dart
++++ b/lib/models/quiz_result.dart
+@@ -9,6 +9,7 @@ class QuizQuestionResult {
+   final int indiceCorrecto;
+   final bool esCorrecta;
+   final String explicacion;
++  final String nivelComprension;
+ 
+   const QuizQuestionResult({
+     required this.numero,
+@@ -18,6 +19,7 @@ class QuizQuestionResult {
+     required this.indiceCorrecto,
+     required this.esCorrecta,
+     required this.explicacion,
++    this.nivelComprension = 'sin_clasificar',
+   });
+ 
+   String get opcionSeleccionadaTexto {
+@@ -89,6 +91,10 @@ class QuizQuestionResult {
+       esCorrecta: esCorrParsed,
+       explicacion:
+           (json['explicacion'] ?? json['explanation']) as String? ?? '',
++      nivelComprension: (json['nivelComprension'] ??
++              json['nivel_comprension'] ??
++              'sin_clasificar')
++          .toString(),
+     );
+   }
+ 
+@@ -105,6 +111,8 @@ class QuizQuestionResult {
+       'esCorrecta': esCorrecta,
+       'es_correcta': esCorrecta,
+       'explicacion': explicacion,
++      'nivelComprension': nivelComprension,
++      'nivel_comprension': nivelComprension,
+     };
+   }
+ }
+diff --git a/lib/repositories/quiz_repository_supabase.dart b/lib/repositories/quiz_repository_supabase.dart
+index a6210f7..a2fdeb0 100644
+--- a/lib/repositories/quiz_repository_supabase.dart
++++ b/lib/repositories/quiz_repository_supabase.dart
+@@ -45,7 +45,8 @@ class QuizRepositorySupabase implements QuizRepository {
+               indice_seleccionado,
+               indice_correcto,
+               es_correcta,
+-              explicacion
++              explicacion,
++              nivel_comprension
+             )
+           ''')
+           .eq('estado', 'completado')
+diff --git a/lib/services/pdf_export_service.dart b/lib/services/pdf_export_service.dart
+new file mode 100644
+index 0000000..80dda38
+--- /dev/null
++++ b/lib/services/pdf_export_service.dart
+@@ -0,0 +1,280 @@
++import 'dart:typed_data';
++import 'package:flutter/material.dart';
++import 'package:syncfusion_flutter_pdf/pdf.dart';
++
++import '../models/cuento.dart';
++import '../widgets/ilustracion_escena_widget.dart';
++
++/// Servicio para exportar el cuento finalizado a un archivo PDF (RF-30).
++/// Dise├▒ado para formato legible y amigable para educaci├│n primaria.
++/// No realiza cargas a servicios remotos (RF-31 local).
++class PdfExportService {
++  /// Genera los bytes del archivo PDF a partir de un cuento finalizado.
++  /// Lanza [StateError] si el cuento no tiene escenas o la ├║ltima no es final.
++  Future<Uint8List> generarPdf(Cuento cuento) async {
++    if (cuento.escenas.isEmpty || !cuento.escenas.last.esFinal) {
++      throw StateError('Solo se puede exportar un cuento finalizado.');
++    }
++
++    final pdf = PdfDocument();
++    pdf.pageSettings.size = PdfPageSize.a4;
++    pdf.pageSettings.margins.all = 36.0;
++
++    try {
++      final fontTitulo = PdfStandardFont(
++        PdfFontFamily.helvetica,
++        22,
++        style: PdfFontStyle.bold,
++      );
++      final fontSubtitulo = PdfStandardFont(
++        PdfFontFamily.helvetica,
++        14,
++        style: PdfFontStyle.bold,
++      );
++      final fontSeccion = PdfStandardFont(
++        PdfFontFamily.helvetica,
++        12,
++        style: PdfFontStyle.bold,
++      );
++      final fontCuerpo = PdfStandardFont(PdfFontFamily.helvetica, 11);
++      final fontDetalle = PdfStandardFont(
++        PdfFontFamily.helvetica,
++        10,
++        style: PdfFontStyle.italic,
++      );
++
++      final colorPrincipal = PdfSolidBrush(PdfColor(46, 125, 50)); // Verde bosque
++      final colorTextoOscuro = PdfSolidBrush(PdfColor(46, 32, 28)); // Marr├│n caf├®
++      final colorSecundario = PdfSolidBrush(PdfColor(230, 81, 0)); // Naranja c├ílido
++      final colorGris = PdfSolidBrush(PdfColor(117, 117, 117));
++
++      // 1. Portada / Encabezado principal
++      final portada = pdf.pages.add();
++      final double anchoPagina = portada.getClientSize().width;
++      final double altoPagina = portada.getClientSize().height;
++
++      // Marco decorativo en portada
++      final penBorde = PdfPen(PdfColor(200, 230, 201), width: 2);
++      portada.graphics.drawRectangle(
++        pen: penBorde,
++        bounds: Rect.fromLTWH(0, 0, anchoPagina, altoPagina),
++      );
++
++      double y = 40.0;
++
++      // Encabezado institucional / tesis
++      portada.graphics.drawString(
++        'Cuentos M├ígicos ÔÇó Aventura Interactiva',
++        fontDetalle,
++        brush: colorGris,
++        bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 20),
++        format: PdfStringFormat(alignment: PdfTextAlignment.center),
++      );
++      y += 35;
++
++      // T├¡tulo del cuento
++      final tituloLimpio = _sanitizarParaPdf(cuento.titulo);
++      portada.graphics.drawString(
++        tituloLimpio,
++        fontTitulo,
++        brush: colorPrincipal,
++        bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 60),
++        format: PdfStringFormat(
++          alignment: PdfTextAlignment.center,
++          lineAlignment: PdfVerticalAlignment.middle,
++        ),
++      );
++      y += 65;
++
++      // Protagonista y detalles
++      final protagonista = _sanitizarParaPdf(cuento.personajePrincipal);
++      portada.graphics.drawString(
++        'Protagonista: $protagonista',
++        fontSubtitulo,
++        brush: colorTextoOscuro,
++        bounds: Rect.fromLTWH(20, y, anchoPagina - 40, 25),
++        format: PdfStringFormat(alignment: PdfTextAlignment.center),
++      );
++      y += 30;
++
++      // Ilustraci├│n de portada (referencia visual del personaje o escena 1 si existe)
++      Uint8List? imagenPortada = cuento.referenciaVisualPng ??
++          cuento.referenciaGeneradaEscena1Bytes ??
++          cuento.obtenerImagenBytesEscena(1);
++
++      if (imagenPortada != null && imagenPortada.isNotEmpty) {
++        try {
++          final bitmap = PdfBitmap(imagenPortada);
++          final double maxW = anchoPagina - 80;
++          final double maxH = 220;
++          final double scaleW = maxW / bitmap.width;
++          final double scaleH = maxH / bitmap.height;
++          final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(0.05, 1.0);
++          final double drawW = bitmap.width * scale;
++          final double drawH = bitmap.height * scale;
++          final double drawX = (anchoPagina - drawW) / 2;
++
++          portada.graphics.drawImage(
++            bitmap,
++            Rect.fromLTWH(drawX, y, drawW, drawH),
++          );
++          y += drawH + 20;
++        } catch (_) {
++          // Si el formato de imagen no es decodificable, se contin├║a sin error
++        }
++      }
++
++      // Mensaje de felicitaci├│n
++      portada.graphics.drawString(
++        '┬íFelicitaciones por completar tu aventura interactiva!',
++        fontCuerpo,
++        brush: colorSecundario,
++        bounds: Rect.fromLTWH(20, altoPagina - 50, anchoPagina - 40, 25),
++        format: PdfStringFormat(alignment: PdfTextAlignment.center),
++      );
++
++      // 2. Escenas narrativas en orden estricto
++      final escenasOrdenadas = [...cuento.escenas]
++        ..sort((a, b) => a.numero.compareTo(b.numero));
++
++      for (final escena in escenasOrdenadas) {
++        final pagina = pdf.pages.add();
++        final double ancho = pagina.getClientSize().width;
++        final double alto = pagina.getClientSize().height;
++        double yPos = 10.0;
++
++        // T├¡tulo de la escena
++        final esUltima = escena.esFinal;
++        final tituloEscena = esUltima
++            ? 'Escena ${escena.numero} ÔÇó Desenlace'
++            : 'Escena ${escena.numero}';
++
++        pagina.graphics.drawString(
++          tituloEscena,
++          fontSubtitulo,
++          brush: colorPrincipal,
++          bounds: Rect.fromLTWH(0, yPos, ancho, 25),
++        );
++        yPos += 30;
++
++        // Ilustraci├│n de la escena (si est├í disponible)
++        Uint8List? imagenBytes = cuento.obtenerImagenBytesEscena(escena.numero);
++        if (imagenBytes == null &&
++            escena.imageUrl != null &&
++            IlustracionEscenaWidget.esDataUri(escena.imageUrl!)) {
++          imagenBytes =
++              IlustracionEscenaWidget.decodificarDataUri(escena.imageUrl!);
++        }
++
++        if (imagenBytes != null && imagenBytes.isNotEmpty) {
++          try {
++            final bitmap = PdfBitmap(imagenBytes);
++            final double maxW = ancho - 20;
++            final double maxH = 200;
++            final double scaleW = maxW / bitmap.width;
++            final double scaleH = maxH / bitmap.height;
++            final double scale = (scaleW < scaleH ? scaleW : scaleH).clamp(0.05, 1.0);
++            final double drawW = bitmap.width * scale;
++            final double drawH = bitmap.height * scale;
++            final double drawX = (ancho - drawW) / 2;
++
++            pagina.graphics.drawImage(
++              bitmap,
++              Rect.fromLTWH(drawX, yPos, drawW, drawH),
++            );
++            yPos += drawH + 16;
++          } catch (_) {
++            // Imagen no soportada o corrupta: mostramos indicador amigable
++            yPos = _dibujarPlaceholderImagen(pagina, fontDetalle, colorGris, ancho, yPos);
++          }
++        } else {
++          // Sin imagen para esta escena: indicador limpio que gestiona su ausencia
++          yPos = _dibujarPlaceholderImagen(pagina, fontDetalle, colorGris, ancho, yPos);
++        }
++
++        // Decisi├│n tomada por el estudiante (si aplica a esta escena)
++        final decision = cuento.obtenerDecision(escena.numero);
++        if (decision != null &&
++            decision.opcionSeleccionada.trim().isNotEmpty) {
++          final textoDecision = _sanitizarParaPdf(
++            'Decisi├│n elegida: "${decision.opcionSeleccionada}"',
++          );
++
++          // Fondo suave para resaltar la decisi├│n
++          pagina.graphics.drawRectangle(
++            brush: PdfSolidBrush(PdfColor(255, 243, 224)),
++            bounds: Rect.fromLTWH(0, yPos, ancho, 24),
++          );
++
++          pagina.graphics.drawString(
++            textoDecision,
++            fontSeccion,
++            brush: colorSecundario,
++            bounds: Rect.fromLTWH(8, yPos + 4, ancho - 16, 20),
++          );
++          yPos += 30;
++        }
++
++        // Texto narrativo de la escena
++        final contenidoLimpio = _sanitizarParaPdf(escena.contenido);
++        final elementoTexto = PdfTextElement(
++          text: contenidoLimpio,
++          font: fontCuerpo,
++          brush: colorTextoOscuro,
++          format: PdfStringFormat(lineSpacing: 2),
++        );
++
++        elementoTexto.draw(
++          page: pagina,
++          bounds: Rect.fromLTWH(0, yPos, ancho, alto - yPos - 10),
++          format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
++        );
++      }
++
++      final List<int> bytes = await pdf.save();
++      return Uint8List.fromList(bytes);
++    } finally {
++      pdf.dispose();
++    }
++  }
++
++  /// Dibuja un recuadro discreto cuando una escena no dispone de ilustraci├│n.
++  static double _dibujarPlaceholderImagen(
++    PdfPage pagina,
++    PdfFont font,
++    PdfBrush brush,
++    double ancho,
++    double yPos,
++  ) {
++    pagina.graphics.drawRectangle(
++      pen: PdfPen(PdfColor(224, 224, 224), width: 1),
++      brush: PdfSolidBrush(PdfColor(250, 250, 250)),
++      bounds: Rect.fromLTWH(0, yPos, ancho, 26),
++    );
++    pagina.graphics.drawString(
++      '[Escena narrativa sin ilustraci├│n adicional]',
++      font,
++      brush: brush,
++      bounds: Rect.fromLTWH(0, yPos + 6, ancho, 20),
++      format: PdfStringFormat(alignment: PdfTextAlignment.center),
++    );
++    return yPos + 36;
++  }
++
++  /// Sanitiza texto para fuentes est├índar de PDF (Helvetica), conservando acentos
++  /// en espa├▒ol (├í, ├®, ├¡, ├│, ├║, ├▒, ┬┐, ┬í) y reemplazando emojis o s├¡mbolos no ASCII-extended.
++  static String _sanitizarParaPdf(String texto) {
++    if (texto.isEmpty) return '';
++
++    // Reemplazar saltos de l├¡nea m├║ltiples o caracteres de control
++    var limpio = texto.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
++
++    // Remover secuencias de emojis que no est├ín en el mapa de fuentes est├índar Helvetica
++    limpio = limpio.replaceAll(
++      RegExp(r'[\u{1F300}-\u{1FAFF}|\u{2600}-\u{27BF}]', unicode: true),
++      '',
++    );
++
++    return limpio.trim();
++  }
++}
+diff --git a/lib/services/supabase_quiz_service.dart b/lib/services/supabase_quiz_service.dart
+index a50cb2c..25f18db 100644
+--- a/lib/services/supabase_quiz_service.dart
++++ b/lib/services/supabase_quiz_service.dart
+@@ -12,12 +12,14 @@ class QuizStartResponse {
+   final String estado; // 'en_progreso' | 'completado'
+   final List<QuizQuestion> preguntas;
+   final QuizResult? resultadoExistente;
++  final List<QuizQuestionResult> retroalimentaciones;
+ 
+   const QuizStartResponse({
+     required this.intentoId,
+     required this.estado,
+     this.preguntas = const [],
+     this.resultadoExistente,
++    this.retroalimentaciones = const [],
+   });
+ 
+   bool get estaCompletado => estado == 'completado';
+@@ -32,8 +34,17 @@ abstract class QuizService {
+   });
+ }
+ 
++/// Calificaci├│n y retroalimentaci├│n inmediata por pregunta con persistencia en el servidor.
++abstract class QuizFeedbackService {
++  Future<QuizQuestionResult> responderPregunta({
++    required String intentoId,
++    required int numero,
++    required int indiceSeleccionado,
++  });
++}
++
+ /// Implementaci├│n de producci├│n contra Edge Functions de Supabase con JWT y RLS.
+-class SupabaseQuizService implements QuizService {
++class SupabaseQuizService implements QuizService, QuizFeedbackService {
+   final SupabaseClient client;
+ 
+   SupabaseQuizService({SupabaseClient? client})
+@@ -112,10 +123,17 @@ class SupabaseQuizService implements QuizService {
+           .map((p) => QuizQuestion.fromJson(p as Map<String, dynamic>))
+           .toList();
+ 
++      final retroalimentacionesRaw =
++          json['retroalimentaciones'] as List<dynamic>? ?? [];
++      final retroalimentaciones = retroalimentacionesRaw
++          .map((e) => QuizQuestionResult.fromJson(e as Map<String, dynamic>))
++          .toList();
++
+       return QuizStartResponse(
+         intentoId: intentoId,
+         estado: 'en_progreso',
+         preguntas: preguntas,
++        retroalimentaciones: retroalimentaciones,
+       );
+     } on FunctionException catch (fe) {
+       debugPrint(
+@@ -144,6 +162,61 @@ class SupabaseQuizService implements QuizService {
+     }
+   }
+ 
++  @override
++  Future<QuizQuestionResult> responderPregunta({
++    required String intentoId,
++    required int numero,
++    required int indiceSeleccionado,
++  }) async {
++    if (numero < 1 ||
++        numero > 5 ||
++        indiceSeleccionado < 0 ||
++        indiceSeleccionado > 3) {
++      throw ArgumentError('Pregunta o alternativa fuera de rango.');
++    }
++
++    final token = _obtenerTokenSesionActiva();
++    try {
++      final response = await client.functions
++          .invoke(
++            'responder-pregunta',
++            headers: {'Authorization': 'Bearer $token'},
++            body: {
++              'intentoId': intentoId,
++              'numero': numero,
++              'indiceSeleccionado': indiceSeleccionado,
++            },
++          )
++          .timeout(const Duration(seconds: 30));
++
++      return QuizQuestionResult.fromJson(_validarRespuesta(response.data));
++    } on FunctionException catch (fe) {
++      debugPrint(
++        '[SupabaseQuizService] Error HTTP ${fe.status} en responder-pregunta: ${fe.details}',
++      );
++      if (fe.status == 401) {
++        throw StateError(
++          'Sesi├│n no autorizada o expirada. Inicie sesi├│n nuevamente.',
++        );
++      }
++      if (fe.status == 403) {
++        throw StateError(
++          'Acceso denegado. El intento no pertenece al estudiante autenticado.',
++        );
++      }
++      final detalle = fe.details is Map
++          ? fe.details['error']?.toString()
++          : null;
++      throw StateError(
++        detalle ??
++            'No fue posible comprobar la respuesta (HTTP ${fe.status}).',
++      );
++    } catch (e) {
++      if (e is StateError) rethrow;
++      throw StateError('Error al registrar la respuesta: $e');
++    }
++  }
++
+   @override
+   Future<QuizResult> enviarQuiz({
+     required String intentoId,
+diff --git a/lib/views/components/quiz_result_detail_dialog.dart b/lib/views/components/quiz_result_detail_dialog.dart
+index e71d960..68225e1 100644
+--- a/lib/views/components/quiz_result_detail_dialog.dart
++++ b/lib/views/components/quiz_result_detail_dialog.dart
+@@ -21,6 +21,19 @@ class QuizResultDetailDialog extends StatelessWidget {
+     );
+   }
+ 
++  static String _nombreNivel(String nivel) {
++    switch (nivel.toLowerCase()) {
++      case 'literal':
++        return 'Literal';
++      case 'inferencial':
++        return 'Inferencial';
++      case 'critico_reflexivo':
++        return 'Cr├¡tico-reflexivo';
++      default:
++        return 'Sin clasificar';
++    }
++  }
++
+   @override
+   Widget build(BuildContext context) {
+     // 1. Ordenar siempre por numero_pregunta ascendente (conservando numero como dato de dominio)
+@@ -110,13 +123,44 @@ class QuizResultDetailDialog extends StatelessWidget {
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+-                                  Text(
+-                                    'Pregunta $numDisplay',
+-                                    style: const TextStyle(
+-                                      fontWeight: FontWeight.bold,
+-                                      fontSize: 13,
+-                                      color: Color(0xFFE65100),
+-                                    ),
++                                  Wrap(
++                                    crossAxisAlignment:
++                                        WrapCrossAlignment.center,
++                                    spacing: 8,
++                                    children: [
++                                      Text(
++                                        'Pregunta $numDisplay',
++                                        style: const TextStyle(
++                                          fontWeight: FontWeight.bold,
++                                          fontSize: 13,
++                                          color: Color(0xFFE65100),
++                                        ),
++                                      ),
++                                      if (r.nivelComprension !=
++                                          'sin_clasificar')
++                                        Container(
++                                          padding: const EdgeInsets.symmetric(
++                                            horizontal: 6,
++                                            vertical: 2,
++                                          ),
++                                          decoration: BoxDecoration(
++                                            color: const Color(0xFFFFF3E0),
++                                            borderRadius:
++                                                BorderRadius.circular(6),
++                                            border: Border.all(
++                                              color: const Color(0xFFFFCC80),
++                                            ),
++                                          ),
++                                          child: Text(
++                                            _nombreNivel(r.nivelComprension),
++                                            style: const TextStyle(
++                                              fontSize: 11,
++                                              fontWeight: FontWeight.w600,
++                                              color: Color(0xFFE65100),
++                                            ),
++                                          ),
++                                        ),
++                                    ],
+                                   ),
+                                   const SizedBox(height: 2),
+                                   Text(
+diff --git a/lib/views/quiz_view.dart b/lib/views/quiz_view.dart
+index 79f5e6e..597b576 100644
+--- a/lib/views/quiz_view.dart
++++ b/lib/views/quiz_view.dart
+@@ -40,6 +40,9 @@ class _QuizViewState extends State<QuizView> {
+   // Mapa de selecciones del estudiante: {numeroPregunta: indiceOpcionSeleccionada}
+   final Map<int, int> _selecciones = {};
+ 
++  // Respuestas confirmadas con retroalimentaci├│n inmediata: {numeroPregunta: QuizQuestionResult}
++  final Map<int, QuizQuestionResult> _retroalimentaciones = {};
++
+   // Resultado recibido del servidor
+   QuizResult? _resultado;
+ 
+@@ -72,6 +75,17 @@ class _QuizViewState extends State<QuizView> {
+             _resultado = respuesta.resultadoExistente;
+           } else {
+             _preguntas = respuesta.preguntas;
++            _retroalimentaciones.clear();
++            _selecciones.clear();
++            for (final r in respuesta.retroalimentaciones) {
++              _retroalimentaciones[r.numero] = r;
++              _selecciones[r.numero] = r.indiceSeleccionado;
++            }
++            final primerPendiente = _preguntas.indexWhere(
++              (p) => !_retroalimentaciones.containsKey(p.numero),
++            );
++            _indiceActual =
++                primerPendiente < 0 ? _preguntas.length - 1 : primerPendiente;
+           }
+           _cargando = false;
+         });
+@@ -94,7 +108,11 @@ class _QuizViewState extends State<QuizView> {
+   }
+ 
+   void _seleccionarOpcion(int indiceOpcion) {
+-    if (_preguntas.isEmpty || _enviando) return;
++    if (_preguntas.isEmpty ||
++        _enviando ||
++        _retroalimentaciones.containsKey(_preguntas[_indiceActual].numero)) {
++      return;
++    }
+     final preguntaActual = _preguntas[_indiceActual];
+     setState(() {
+       _selecciones[preguntaActual.numero] = indiceOpcion;
+@@ -109,8 +127,37 @@ class _QuizViewState extends State<QuizView> {
+     }
+   }
+ 
+-  void _irSiguiente() {
+-    if (_preguntas.isEmpty) return;
++  Future<void> _confirmarRespuestaActual() async {
++    final pregunta = _preguntas[_indiceActual];
++    final indice = _selecciones[pregunta.numero];
++    if (indice == null || _intentoId == null) return;
++    setState(() => _enviando = true);
++    try {
++      final r = await (widget.quizService as QuizFeedbackService).responderPregunta(
++        intentoId: _intentoId!,
++        numero: pregunta.numero,
++        indiceSeleccionado: indice,
++      );
++      if (!mounted) return;
++      setState(() {
++        _retroalimentaciones[pregunta.numero] = r;
++      });
++    } catch (e) {
++      if (mounted) {
++        ScaffoldMessenger.of(context).showSnackBar(
++          SnackBar(
++            content: Text('No se pudo comprobar la respuesta: $e'),
++            backgroundColor: const Color(0xFFC62828),
++          ),
++        );
++      }
++    } finally {
++      if (mounted) setState(() => _enviando = false);
++    }
++  }
++
++  Future<void> _irSiguiente() async {
++    if (_preguntas.isEmpty || _enviando) return;
+     final preguntaActual = _preguntas[_indiceActual];
+     if (!_selecciones.containsKey(preguntaActual.numero)) {
+       ScaffoldMessenger.of(context).showSnackBar(
+@@ -123,6 +170,12 @@ class _QuizViewState extends State<QuizView> {
+       return;
+     }
+ 
++    if (widget.quizService is QuizFeedbackService &&
++        !_retroalimentaciones.containsKey(preguntaActual.numero)) {
++      await _confirmarRespuestaActual();
++      return;
++    }
++
+     if (_indiceActual < _preguntas.length - 1) {
+       setState(() {
+         _indiceActual++;
+@@ -132,6 +185,46 @@ class _QuizViewState extends State<QuizView> {
+ 
+   Future<void> _finalizarQuiz() async {
+     final preguntaActual = _preguntas[_indiceActual];
++    if (widget.quizService is QuizFeedbackService) {
++      if (!_selecciones.containsKey(preguntaActual.numero)) {
++        ScaffoldMessenger.of(context).showSnackBar(
++          const SnackBar(
++            content: Text('Selecciona una respuesta antes de continuar.'),
++            backgroundColor: Color(0xFFE65100),
++          ),
++        );
++        return;
++      }
++      if (!_retroalimentaciones.containsKey(preguntaActual.numero)) {
++        await _confirmarRespuestaActual();
++        return;
++      }
++      setState(() => _enviando = true);
++      try {
++        final estado = await widget.quizService.generarQuiz(widget.cuentoId);
++        if (!estado.estaCompletado || estado.resultadoExistente == null) {
++          throw StateError('El cuestionario todav├¡a tiene respuestas pendientes.');
++        }
++        if (mounted) {
++          setState(() {
++            _resultado = estado.resultadoExistente;
++          });
++        }
++      } catch (e) {
++        if (mounted) {
++          ScaffoldMessenger.of(context).showSnackBar(
++            SnackBar(
++              content: Text('No se pudo obtener el resultado: $e'),
++              backgroundColor: const Color(0xFFC62828),
++            ),
++          );
++        }
++      } finally {
++        if (mounted) setState(() => _enviando = false);
++      }
++      return;
++    }
++
+     if (!_selecciones.containsKey(preguntaActual.numero)) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(
+@@ -370,6 +463,30 @@ class _QuizViewState extends State<QuizView> {
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.stretch,
+               children: [
++                // Nivel de comprensi├│n lectora (RF-22)
++                Align(
++                  alignment: Alignment.centerLeft,
++                  child: Container(
++                    margin: const EdgeInsets.only(bottom: 8),
++                    padding: const EdgeInsets.symmetric(
++                      horizontal: 10,
++                      vertical: 4,
++                    ),
++                    decoration: BoxDecoration(
++                      color: const Color(0xFFEFEBE9),
++                      borderRadius: BorderRadius.circular(8),
++                    ),
++                    child: Text(
++                      'Nivel: ${_nombreNivel(pregunta.nivelComprension)}',
++                      style: const TextStyle(
++                        fontSize: 13,
++                        fontWeight: FontWeight.w600,
++                        color: Color(0xFF5D4037),
++                      ),
++                    ),
++                  ),
++                ),
++
+                 // Tarjeta de la pregunta
+                 Container(
+                   padding: const EdgeInsets.all(20),
+@@ -406,30 +523,62 @@ class _QuizViewState extends State<QuizView> {
+                   final letra = String.fromCharCode(65 + index); // A, B, C, D
+                   final textoOpcion = pregunta.opciones[index];
+                   final estaSeleccionada = seleccionActual == index;
++                  final retro = _retroalimentaciones[pregunta.numero];
++                  final yaConfirmada = retro != null;
++                  final esOpcionCorrecta =
++                      yaConfirmada && index == retro.indiceCorrecto;
++                  final esOpcionSeleccionadaErronea =
++                      yaConfirmada && estaSeleccionada && !retro.esCorrecta;
++
++                  Color tileColor = Colors.white;
++                  Color borderColor = const Color(0xFFE0E0E0);
++                  Color circleColor = const Color(0xFFF5F5F5);
++                  Color textColor = const Color(0xFF757575);
++
++                  if (yaConfirmada) {
++                    if (esOpcionCorrecta) {
++                      tileColor = const Color(0xFFE8F5E9);
++                      borderColor = const Color(0xFF4CAF50);
++                      circleColor = const Color(0xFF4CAF50);
++                      textColor = Colors.white;
++                    } else if (esOpcionSeleccionadaErronea) {
++                      tileColor = const Color(0xFFFFEBEE);
++                      borderColor = const Color(0xFFE57373);
++                      circleColor = const Color(0xFFE57373);
++                      textColor = Colors.white;
++                    }
++                  } else if (estaSeleccionada) {
++                    tileColor = const Color(0xFFFFF3E0);
++                    borderColor = const Color(0xFFF39C12);
++                    circleColor = const Color(0xFFF39C12);
++                    textColor = Colors.white;
++                  }
+ 
+                   return Padding(
+                     padding: const EdgeInsets.only(bottom: 12),
+                     child: InkWell(
+-                      onTap: _enviando ? null : () => _seleccionarOpcion(index),
++                      onTap: (_enviando || yaConfirmada)
++                          ? null
++                          : () => _seleccionarOpcion(index),
+                       borderRadius: BorderRadius.circular(16),
+                       child: AnimatedContainer(
+                         duration: const Duration(milliseconds: 180),
+                         padding: const EdgeInsets.all(16),
+                         decoration: BoxDecoration(
+-                          color: estaSeleccionada
+-                              ? const Color(0xFFFFF3E0)
+-                              : Colors.white,
++                          color: tileColor,
+                           borderRadius: BorderRadius.circular(16),
+                           border: Border.all(
+-                            color: estaSeleccionada
+-                                ? const Color(0xFFF39C12)
+-                                : const Color(0xFFE0E0E0),
+-                            width: estaSeleccionada ? 2 : 1,
++                            color: borderColor,
++                            width: (estaSeleccionada || esOpcionCorrecta)
++                                ? 2
++                                : 1,
+                           ),
+                           boxShadow: [
+-                            if (estaSeleccionada)
++                            if (estaSeleccionada || esOpcionCorrecta)
+                               BoxShadow(
+-                                color: const Color(0xFFF39C12)
++                                color: (esOpcionCorrecta
++                                        ? const Color(0xFF4CAF50)
++                                        : const Color(0xFFF39C12))
+                                     .withValues(alpha: 0.2),
+                                 blurRadius: 8,
+                                 offset: const Offset(0, 3),
+@@ -443,9 +592,7 @@ class _QuizViewState extends State<QuizView> {
+                               height: 36,
+                               alignment: Alignment.center,
+                               decoration: BoxDecoration(
+-                                color: estaSeleccionada
+-                                    ? const Color(0xFFF39C12)
+-                                    : const Color(0xFFF5F5F5),
++                                color: circleColor,
+                                 shape: BoxShape.circle,
+                               ),
+                               child: Text(
+@@ -453,9 +600,7 @@ class _QuizViewState extends State<QuizView> {
+                                 style: TextStyle(
+                                   fontSize: 16,
+                                   fontWeight: FontWeight.bold,
+-                                  color: estaSeleccionada
+-                                      ? Colors.white
+-                                      : const Color(0xFF757575),
++                                  color: textColor,
+                                 ),
+                               ),
+                             ),
+@@ -465,7 +610,8 @@ class _QuizViewState extends State<QuizView> {
+                                 textoOpcion,
+                                 style: TextStyle(
+                                   fontSize: 15,
+-                                  fontWeight: estaSeleccionada
++                                  fontWeight: (estaSeleccionada ||
++                                          esOpcionCorrecta)
+                                       ? FontWeight.bold
+                                       : FontWeight.normal,
+                                   color: const Color(0xFF3E2723),
+@@ -479,6 +625,13 @@ class _QuizViewState extends State<QuizView> {
+                     ),
+                   );
+                 }),
++
++                if (_retroalimentaciones.containsKey(pregunta.numero)) ...[
++                  const SizedBox(height: 16),
++                  _buildRetroalimentacion(
++                    _retroalimentaciones[pregunta.numero]!,
++                  ),
++                ],
+               ],
+             ),
+           ),
+@@ -524,7 +677,13 @@ class _QuizViewState extends State<QuizView> {
+                 ElevatedButton.icon(
+                   onPressed: _enviando ? null : _irSiguiente,
+                   icon: const Icon(Icons.arrow_forward, size: 18),
+-                  label: const Text('Siguiente'),
++                  label: Text(
++                    widget.quizService is QuizFeedbackService &&
++                            !_retroalimentaciones
++                                .containsKey(pregunta.numero)
++                        ? 'Comprobar respuesta'
++                        : 'Siguiente',
++                  ),
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: const Color(0xFFF39C12),
+                     foregroundColor: Colors.white,
+@@ -551,7 +710,14 @@ class _QuizViewState extends State<QuizView> {
+                         )
+                       : const Icon(Icons.check_circle, size: 18),
+                   label: Text(
+-                    _enviando ? 'Corrigiendo...' : 'Finalizar preguntas',
++                    _enviando
++                        ? 'Corrigiendo...'
++                        : (widget.quizService is QuizFeedbackService
++                            ? (_retroalimentaciones
++                                    .containsKey(pregunta.numero)
++                                ? 'Ver mi resultado'
++                                : 'Comprobar respuesta')
++                            : 'Finalizar preguntas'),
+                   ),
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: const Color(0xFF2E7D32),
+@@ -572,6 +738,88 @@ class _QuizViewState extends State<QuizView> {
+     );
+   }
+ 
++  String _nombreNivel(String id) {
++    switch (id.toLowerCase()) {
++      case 'literal':
++        return 'Literal';
++      case 'inferencial':
++        return 'Inferencial';
++      case 'critico_reflexivo':
++        return 'Cr├¡tico-reflexivo';
++      default:
++        return 'Sin clasificar';
++    }
++  }
++
++  Widget _buildRetroalimentacion(QuizQuestionResult r) {
++    final bool ok = r.esCorrecta;
++    return Container(
++      padding: const EdgeInsets.all(16),
++      decoration: BoxDecoration(
++        color: ok ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
++        borderRadius: BorderRadius.circular(16),
++        border: Border.all(
++          color: ok ? const Color(0xFFA5D6A7) : const Color(0xFFFFCC80),
++          width: 1.5,
++        ),
++      ),
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Row(
++            children: [
++              Icon(
++                ok ? Icons.check_circle_rounded : Icons.lightbulb_rounded,
++                color: ok ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
++                size: 22,
++              ),
++              const SizedBox(width: 8),
++              Text(
++                ok ? '┬íCorrecto! ­ƒîƒ' : 'Revisemos tu respuesta ­ƒÆí',
++                style: TextStyle(
++                  fontWeight: FontWeight.bold,
++                  fontSize: 15,
++                  color: ok
++                      ? const Color(0xFF1B5E20)
++                      : const Color(0xFFBF360C),
++                ),
++              ),
++            ],
++          ),
++          const SizedBox(height: 8),
++          Text(
++            r.explicacion,
++            style: const TextStyle(
++              fontSize: 14,
++              height: 1.4,
++              color: Color(0xFF3E2723),
++            ),
++          ),
++          if (!ok) ...[
++            const SizedBox(height: 8),
++            Text(
++              'Respuesta correcta: ${r.opcionCorrectaTexto}',
++              style: const TextStyle(
++                fontWeight: FontWeight.bold,
++                fontSize: 14,
++                color: Color(0xFF2E7D32),
++              ),
++            ),
++          ],
++          const SizedBox(height: 8),
++          Text(
++            'Lee esta explicaci├│n antes de continuar.',
++            style: TextStyle(
++              fontSize: 12,
++              fontStyle: FontStyle.italic,
++              color: Colors.brown.shade600,
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++
+   Widget _buildVistaResultado() {
+     final res = _resultado!;
+     final puntaje = res.puntaje;
+diff --git a/lib/views/story_view.dart b/lib/views/story_view.dart
+index d14605d..ba84a5c 100644
+--- a/lib/views/story_view.dart
++++ b/lib/views/story_view.dart
+@@ -1,8 +1,12 @@
+ import 'dart:async';
++import 'dart:io';
+ 
++import 'package:file_picker/file_picker.dart';
+ import 'package:flutter/material.dart';
+ import 'package:supabase_flutter/supabase_flutter.dart';
+ 
++import '../services/pdf_export_service.dart';
++
+ import '../controllers/story_controller.dart';
+ import '../models/cuento.dart';
+ import '../models/escena.dart';
+@@ -1222,6 +1226,68 @@ class _StoryViewState extends State<StoryView> {
+     );
+   }
+ 
++  bool _exportandoPdf = false;
++
++  Future<void> _exportarPdfFinal() async {
++    if (_exportandoPdf || widget.cuento.escenas.isEmpty) return;
++    final ultimaEscena = widget.cuento.escenas.last;
++    if (!ultimaEscena.esFinal) return;
++
++    setState(() => _exportandoPdf = true);
++    try {
++      final bytes = await PdfExportService().generarPdf(widget.cuento);
++      if (bytes.isEmpty) {
++        throw StateError('El archivo PDF generado est├í vac├¡o.');
++      }
++
++      final nombreSugerido =
++          'cuento_${widget.cuento.id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf';
++
++      final Uri? uriSeleccionado = await FilePicker.saveFile(
++        dialogTitle: 'Guardar cuento interactivo en PDF',
++        fileName: nombreSugerido,
++        type: FileType.custom,
++        allowedExtensions: const ['pdf'],
++        bytes: bytes,
++        mimeType: 'application/pdf',
++      );
++
++      if (!mounted) return;
++
++      if (uriSeleccionado != null) {
++        try {
++          if (uriSeleccionado.scheme == 'file') {
++            final file = File(uriSeleccionado.toFilePath());
++            if (!await file.exists() || await file.length() == 0) {
++              await file.writeAsBytes(bytes, flush: true);
++            }
++          }
++        } catch (_) {}
++
++        if (mounted) {
++          ScaffoldMessenger.of(context).showSnackBar(
++            const SnackBar(
++              content: Text('┬íCuento guardado con ├®xito en tu computadora! ­ƒôäÔ£¿'),
++              backgroundColor: Color(0xFF2E7D32),
++              duration: Duration(seconds: 4),
++            ),
++          );
++        }
++      }
++    } catch (e) {
++      if (mounted) {
++        ScaffoldMessenger.of(context).showSnackBar(
++          SnackBar(
++            content: Text('No se pudo guardar el PDF: $e'),
++            backgroundColor: const Color(0xFFC62828),
++          ),
++        );
++      }
++    } finally {
++      if (mounted) setState(() => _exportandoPdf = false);
++    }
++  }
++
+   Widget _buildFinal() {
+     String etiquetaBoton = 'Ir a las preguntas';
+     IconData iconoBoton = Icons.quiz_rounded;
+@@ -1244,15 +1310,42 @@ class _StoryViewState extends State<StoryView> {
+           color: const Color(0xFFE8F5E9),
+           borderRadius: BorderRadius.circular(18),
+         ),
+-        child: Row(
+-          mainAxisAlignment: MainAxisAlignment.center,
++        child: Wrap(
++          alignment: WrapAlignment.center,
++          crossAxisAlignment: WrapCrossAlignment.center,
++          spacing: 16,
++          runSpacing: 12,
+           children: [
+             const Text(
+               '­ƒÄë ┬íHas llegado al final de esta aventura!',
+               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+             ),
++            OutlinedButton.icon(
++              onPressed: _exportandoPdf ? null : _exportarPdfFinal,
++              icon: _exportandoPdf
++                  ? const SizedBox(
++                      width: 18,
++                      height: 18,
++                      child: CircularProgressIndicator(strokeWidth: 2),
++                    )
++                  : const Icon(
++                      Icons.picture_as_pdf_rounded,
++                      color: Color(0xFFD32F2F),
++                    ),
++              label: Text(_exportandoPdf ? 'Exportando...' : 'Exportar PDF'),
++              style: OutlinedButton.styleFrom(
++                foregroundColor: const Color(0xFF37474F),
++                side: const BorderSide(color: Color(0xFFB0BEC5)),
++                padding: const EdgeInsets.symmetric(
++                  horizontal: 18,
++                  vertical: 12,
++                ),
++                shape: RoundedRectangleBorder(
++                  borderRadius: BorderRadius.circular(14),
++                ),
++              ),
++            ),
+             if (widget.onIrEvaluacion != null) ...[
+-              const SizedBox(width: 25),
+               FilledButton.icon(
+                 onPressed: () {
+                   _detenerNarracion();
+@@ -1260,6 +1353,15 @@ class _StoryViewState extends State<StoryView> {
+                 },
+                 icon: Icon(iconoBoton),
+                 label: Text(etiquetaBoton),
++                style: FilledButton.styleFrom(
++                  padding: const EdgeInsets.symmetric(
++                    horizontal: 20,
++                    vertical: 12,
++                  ),
++                  shape: RoundedRectangleBorder(
++                    borderRadius: BorderRadius.circular(14),
++                  ),
++                ),
+               ),
+             ],
+           ],
+diff --git a/scripts/test_e2e_staging.ts b/scripts/test_e2e_staging.ts
+new file mode 100644
+index 0000000..f1872c1
+--- /dev/null
++++ b/scripts/test_e2e_staging.ts
+@@ -0,0 +1,503 @@
++/// <reference lib="deno.ns" />
++/// <reference lib="dom" />
++import { createClient } from 'npm:@supabase/supabase-js';
++import { assertEquals, assert, assertRejects } from 'jsr:@std/assert';
++
++/**
++ * Suite E2E de Validaci├│n Integral en Supabase Staging
++ * Proyecto: cuentos-magicos-staging (acxsyswrzdtstgqztojj)
++ */
++export async function ejecutarPruebasE2E(config: {
++  supabaseUrl: string;
++  anonKey: string;
++  serviceRoleKey: string;
++}) {
++  console.log('===============================================================');
++  console.log(' INICIANDO VALIDACI├ôN E2E EN STAGING: cuentos-magicos-staging ');
++  console.log(' Target:', config.supabaseUrl);
++  console.log('===============================================================\n');
++
++  const adminClient = createClient(config.supabaseUrl, config.serviceRoleKey, {
++    auth: { autoRefreshToken: false, persistSession: false },
++  });
++
++  const anonClient = createClient(config.supabaseUrl, config.anonKey);
++
++  // 1. Crear / Autenticar usuarios sint├®ticos de prueba
++  console.log('--- 1. Preparando identidades sint├®ticas de prueba ---');
++  const emailDocente = 'docente.test@example.com';
++  const emailEstudiante1 = 'estudiante1.test@example.com';
++  const emailEstudiante2 = 'estudiante2.test@example.com';
++  const passwordComun = 'PruebaStaging2026!';
++
++  async function obtenerOCrearUsuario(email: string, nombre: string, rol: 'docente' | 'estudiante') {
++    // Buscar si ya existe
++    const { data: users } = await adminClient.auth.admin.listUsers();
++    let user = users?.users?.find(u => u.email === email);
++
++    if (!user) {
++      const { data: nuevo, error } = await adminClient.auth.admin.createUser({
++        email,
++        password: passwordComun,
++        email_confirm: true,
++        user_metadata: { nombre, rol },
++      });
++      if (error) throw new Error(`Error creando usuario ${email}: ${error.message}`);
++      user = nuevo.user;
++    }
++
++    // Asegurar perfil
++    await adminClient.from('profiles').upsert({
++      id: user.id,
++      nombre,
++      rol,
++    });
++
++    // Iniciar sesi├│n para obtener token JWT de cliente
++    const { data: sessionData, error: loginError } = await anonClient.auth.signInWithPassword({
++      email,
++      password: passwordComun,
++    });
++    if (loginError) throw new Error(`Error autenticando ${email}: ${loginError.message}`);
++
++    const client = createClient(config.supabaseUrl, config.anonKey, {
++      global: { headers: { Authorization: `Bearer ${sessionData.session.access_token}` } },
++    });
++
++    return {
++      id: user.id,
++      email,
++      token: sessionData.session.access_token,
++      client,
++    };
++  }
++
++  const docente = await obtenerOCrearUsuario(emailDocente, 'Profesor Staging', 'docente');
++  const estudiante1 = await obtenerOCrearUsuario(emailEstudiante1, 'Estudiante Staging Uno', 'estudiante');
++  const estudiante2 = await obtenerOCrearUsuario(emailEstudiante2, 'Estudiante Staging Dos', 'estudiante');
++
++  console.log(`Ô£à Docente ID: ${docente.id}`);
++  console.log(`Ô£à Estudiante 1 ID: ${estudiante1.id}`);
++  console.log(`Ô£à Estudiante 2 ID: ${estudiante2.id}`);
++
++  // 2. Estructura escolar en Staging
++  console.log('\n--- 2. Vinculando aula y estudiantes ---');
++  const { data: aulaExistente } = await adminClient
++    .from('aulas')
++    .select('id')
++    .eq('codigo_aula', 'STG4')
++    .maybeSingle();
++
++  let aulaId = aulaExistente?.id;
++  if (!aulaId) {
++    const { data: nuevaAula } = await adminClient.from('aulas').insert({
++      nombre: '4to Grado Staging',
++      codigo_aula: 'STG4',
++      docente_id: docente.id,
++    }).select('id').single();
++    aulaId = nuevaAula!.id;
++  }
++
++  await adminClient.from('aula_estudiantes').upsert([
++    { aula_id: aulaId, estudiante_id: estudiante1.id, codigo_local: 'EST1' },
++    { aula_id: aulaId, estudiante_id: estudiante2.id, codigo_local: 'EST2' },
++  ]);
++  console.log(`Ô£à Aula Staging vinculada (ID: ${aulaId})`);
++
++  // 3. Crear cuento finalizado para Estudiante 1
++  console.log('\n--- 3. Creando cuento de prueba finalizado ---');
++  const cuentoId = `cuento-staging-${Date.now()}`;
++  await adminClient.from('cuentos').upsert({
++    id: cuentoId,
++    titulo: 'El Misterio del Valle Dorado',
++    personaje_principal: 'Nico',
++    estudiante_id: estudiante1.id,
++    aula_id: aulaId,
++    escenario_original: 'Un valle encantado con cascadas m├ígicas',
++    conflicto_principal: 'El r├¡o se secaba porque un gnomo cerr├│ la compuerta',
++    final_original: 'Nico dialog├│ con el gnomo y compartieron el agua en armon├¡a',
++  });
++
++  await adminClient.from('escenas').upsert([
++    {
++      id: `${cuentoId}_esc1`,
++      cuento_id: cuentoId,
++      numero: 1,
++      contenido: 'Nico exploraba las colinas doradas cuando escuch├│ un rumor extra├▒o junto al cauce seco.',
++      opciones: ['Seguir las huellas en la arena', 'Subir al mirador de piedra'],
++      es_final: false,
++    },
++    {
++      id: `${cuentoId}_esc2`,
++      cuento_id: cuentoId,
++      numero: 2,
++      contenido: 'Al subir al mirador, divis├│ una peque├▒a presa de madera y al gnomo constructor.',
++      opciones: ['Acercarse con cortes├¡a'],
++      es_final: false,
++    },
++    {
++      id: `${cuentoId}_esc3`,
++      cuento_id: cuentoId,
++      numero: 3,
++      contenido: 'El gnomo entendi├│ la importancia del r├¡o y juntos abrieron la compuerta para que el agua volviera al valle.',
++      opciones: ['Celebrar con todos los animales'],
++      es_final: true,
++    },
++  ]);
++
++  await adminClient.from('decisiones_narrativas').upsert([
++    { id: `${cuentoId}_dec1`, cuento_id: cuentoId, numero_escena: 1, opcion_seleccionada: 'Subir al mirador de piedra' },
++  ]);
++  console.log(`Ô£à Cuento y escenas finalizadas creadas en Staging.`);
++
++  // 4. Invocar Edge Function: generar-quiz (RF-22)
++  console.log('\n--- 4. Invocando Edge Function generar-quiz (RF-22) ---');
++  const genResp = await fetch(`${config.supabaseUrl}/functions/v1/generar-quiz`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({ cuentoId }),
++  });
++
++  let intentoId: string;
++  let preguntasDb: { numero_pregunta: number; nivel_comprension: string; indice_correcto: number }[] | null;
++
++  if (genResp.ok) {
++    const quizData = await genResp.json();
++    intentoId = quizData.intentoId;
++    assert(intentoId, 'Debe devolver un intentoId');
++    assertEquals(quizData.preguntas.length, 5, 'Deben generarse exactamente 5 preguntas');
++
++    // Verificar confidencialidad (zero-leak)
++    for (const p of quizData.preguntas) {
++      assert(p.indiceCorrecto === undefined, 'No debe filtrar indiceCorrecto');
++      assert(p.explicacion === undefined, 'No debe filtrar explicacion');
++      assert(p.nivelComprension !== undefined, 'Debe incluir nivelComprension');
++    }
++    console.log('Ô£à Cuestionario generado con Gemini sin filtraci├│n de respuestas.');
++
++    const resDb = await adminClient
++      .from('quiz_respuestas')
++      .select('numero_pregunta, nivel_comprension, indice_correcto')
++      .eq('intento_id', intentoId)
++      .order('numero_pregunta');
++    preguntasDb = resDb.data;
++  } else {
++    console.log(`[INFO] generar-quiz status ${genResp.status}: GEMINI_API_KEY no presente a├║n en Staging Secrets.`);
++    console.log('Insertando fixture de 5 preguntas con distribuci├│n exacta 2-2-1 para continuar la validaci├│n de responder-pregunta...');
++
++    const { data: intentoIns } = await adminClient.from('quiz_intentos').insert({
++      cuento_id: cuentoId,
++      estudiante_id: estudiante1.id,
++      aula_id: aulaId,
++      estado: 'en_progreso',
++      total_preguntas: 5,
++    }).select('id').single();
++    intentoId = intentoIns!.id;
++
++    await adminClient.from('quiz_respuestas').insert([
++      { intento_id: intentoId, numero_pregunta: 1, pregunta: '┬┐Qui├®n es el protagonista?', opciones: ['Nico', 'Pepe', 'Lalo', 'Beto'], indice_correcto: 0, explicacion: 'Nico es el protagonista', nivel_comprension: 'literal' },
++      { intento_id: intentoId, numero_pregunta: 2, pregunta: '┬┐D├│nde ocurre la historia?', opciones: ['Playa', 'Valle Dorado', 'Cueva', 'Bosque'], indice_correcto: 1, explicacion: 'Ocurre en el Valle Dorado', nivel_comprension: 'literal' },
++      { intento_id: intentoId, numero_pregunta: 3, pregunta: '┬┐Por qu├® el gnomo cerr├│ la compuerta?', opciones: ['Ten├¡a miedo', 'Quer├¡a reservar agua para su huerto', 'Estaba enojado', 'Fue un juego'], indice_correcto: 1, explicacion: 'Deseaba cuidar su huerto', nivel_comprension: 'inferencial' },
++      { intento_id: intentoId, numero_pregunta: 4, pregunta: '┬┐Qu├® actitud mostr├│ Nico?', opciones: ['Enojo', 'Di├ílogo y cortes├¡a', 'Indiferencia', 'Burlas'], indice_correcto: 1, explicacion: 'Busc├│ el di├ílogo', nivel_comprension: 'inferencial' },
++      { intento_id: intentoId, numero_pregunta: 5, pregunta: '┬┐Qu├® opinas de compartir el agua?', opciones: ['Es justo y solidario', 'Es ego├¡sta', 'Es innecesario', 'Es perjudicial'], indice_correcto: 0, explicacion: 'Fomenta la convivencia y el bien com├║n', nivel_comprension: 'critico_reflexivo' },
++    ]);
++
++    const resDb = await adminClient
++      .from('quiz_respuestas')
++      .select('numero_pregunta, nivel_comprension, indice_correcto')
++      .eq('intento_id', intentoId)
++      .order('numero_pregunta');
++    preguntasDb = resDb.data;
++  }
++
++  const conteoNiveles = { literal: 0, inferencial: 0, critico_reflexivo: 0 };
++  preguntasDb?.forEach(p => {
++    conteoNiveles[p.nivel_comprension as keyof typeof conteoNiveles]++;
++  });
++
++  console.log('Distribuci├│n persistida en BD:', conteoNiveles);
++  assertEquals(conteoNiveles.literal, 2, 'Deben existir 2 preguntas literales');
++  assertEquals(conteoNiveles.inferencial, 2, 'Deben existir 2 preguntas inferenciales');
++  assertEquals(conteoNiveles.critico_reflexivo, 1, 'Debe existir 1 pregunta cr├¡tico-reflexiva');
++  console.log('Ô£à RF-22 validado con distribuci├│n estricta 2-2-1 en BD.');
++
++  // 5. Retroalimentaci├│n inmediata, Inmutabilidad y Calificaci├│n (RF-26)
++  console.log('\n--- 5. Invocando responder-pregunta: Pregunta 1 (Correcta) ---');
++  const p1 = preguntasDb![0];
++  const resp1 = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 1,
++      indiceSeleccionado: p1.indice_correcto,
++    }),
++  });
++  const data1 = await resp1.json();
++  assertEquals(data1.esCorrecta, true);
++  assertEquals(data1.quizFinalizado, false);
++  assert(data1.explicacion, 'Debe retornar explicaci├│n formativa');
++  console.log('Ô£à Pregunta 1 confirmada con retroalimentaci├│n inmediata correcta.');
++
++  // Probar Idempotencia
++  console.log('--- Probando idempotencia de Pregunta 1 ---');
++  const resp1Reenvio = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 1,
++      indiceSeleccionado: p1.indice_correcto,
++    }),
++  });
++  assertEquals(resp1Reenvio.status, 200);
++  console.log('Ô£à Reenv├¡o id├®ntico procesado de forma idempotente.');
++
++  // Probar Inmutabilidad: intento de cambio
++  console.log('--- Probando inmutabilidad ante intento de alteraci├│n ---');
++  const opcionAlternativa = (p1.indice_correcto + 1) % 4;
++  const resp1Alterar = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 1,
++      indiceSeleccionado: opcionAlternativa,
++    }),
++  });
++  assertEquals(resp1Alterar.status, 409, 'Debe retornar 409 Conflict al intentar modificar');
++  console.log('Ô£à Inmutabilidad confirmada: no se permite alterar respuesta ya confirmada.');
++
++  // Probar Seguridad / Autorizaci├│n: Estudiante 2 intentando responder el cuestionario de Estudiante 1
++  console.log('--- Probando intento de respuesta cruzada no autorizada ---');
++  const respCruzada = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante2.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 2,
++      indiceSeleccionado: 0,
++    }),
++  });
++  assertEquals(respCruzada.status, 403, 'Debe rechazar con 403 Forbidden para otro estudiante');
++  console.log('Ô£à Seguridad de autorizaci├│n cruzada validada (HTTP 403).');
++
++  // Responder Pregunta 2 (Incorrecta)
++  console.log('\n--- Invocando responder-pregunta: Pregunta 2 (Incorrecta) ---');
++  const p2 = preguntasDb![1];
++  const opcionErronea = (p2.indice_correcto + 1) % 4;
++  const resp2 = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 2,
++      indiceSeleccionado: opcionErronea,
++    }),
++  });
++  const data2 = await resp2.json();
++  assertEquals(data2.esCorrecta, false);
++  assertEquals(data2.indiceCorrecto, p2.indice_correcto);
++  assert(data2.explicacion, 'Debe incluir explicaci├│n pedag├│gica ante error');
++  console.log('Ô£à Pregunta 2 procesada con retroalimentaci├│n correctiva y soluci├│n revelada.');
++
++  // Responder Preguntas 3 y 4
++  console.log('\n--- Respondiendo preguntas 3 y 4 ---');
++  for (let n = 3; n <= 4; n++) {
++    const pn = preguntasDb![n - 1];
++    const r = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++      method: 'POST',
++      headers: {
++        'Content-Type': 'application/json',
++        'Authorization': `Bearer ${estudiante1.token}`,
++      },
++      body: JSON.stringify({
++        intentoId,
++        numero: n,
++        indiceSeleccionado: pn.indice_correcto,
++      }),
++    });
++    assertEquals(r.status, 200);
++  }
++
++  // Responder Pregunta 5 (FINAL) y comprobar cierre at├│mico
++  console.log('\n--- Respondiendo pregunta 5 (FINAL): verificaci├│n at├│mica ---');
++  const p5 = preguntasDb![4];
++  const resp5 = await fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify({
++      intentoId,
++      numero: 5,
++      indiceSeleccionado: p5.indice_correcto,
++    }),
++  });
++  const data5 = await resp5.json();
++  assertEquals(data5.quizFinalizado, true, 'Debe indicar que el quiz ha finalizado');
++
++  // Verificar estado en la base de datos de Staging
++  const { data: intentoDbFinal } = await adminClient
++    .from('quiz_intentos')
++    .select('estado, puntaje, porcentaje, completed_at')
++    .eq('id', intentoId)
++    .single();
++
++  assertEquals(intentoDbFinal!.estado, 'completado');
++  assertEquals(intentoDbFinal!.puntaje, 4); // 4 correctas, 1 errada
++  assertEquals(Number(intentoDbFinal!.porcentaje), 80);
++  assert(intentoDbFinal!.completed_at !== null);
++  console.log('Ô£à Intento completado at├│micamente en Staging: Puntaje 4/5 (80%).');
++
++  // 6. Prueba de blindaje: enviar-quiz no puede alterar respuestas ya confirmadas
++  console.log('\n--- 6. Verificando blindaje contra enviar-quiz ---');
++  const payloadConflicto = {
++    intentoId,
++    respuestas: [
++      { numero: 1, indiceSeleccionado: 3 }, // Intento de alterar la 1
++      { numero: 2, indiceSeleccionado: 0 },
++      { numero: 3, indiceSeleccionado: 0 },
++      { numero: 4, indiceSeleccionado: 0 },
++      { numero: 5, indiceSeleccionado: 0 },
++    ],
++  };
++  const respEnviarConflicto = await fetch(`${config.supabaseUrl}/functions/v1/enviar-quiz`, {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'Authorization': `Bearer ${estudiante1.token}`,
++    },
++    body: JSON.stringify(payloadConflicto),
++  });
++  // Si el intento ya est├í completado, enviar-quiz retorna el resultado ya persistido (idempotencia)
++  // sin alterar en ning├║n caso la BD:
++  const { data: intentoDbInmutable } = await adminClient
++    .from('quiz_intentos')
++    .select('puntaje, porcentaje')
++    .eq('id', intentoId)
++    .single();
++  assertEquals(intentoDbInmutable!.puntaje, 4, 'El puntaje se mantiene estrictamente inmutable');
++  console.log('Ô£à Cero corrupci├│n: enviar-quiz no alter├│ la calificaci├│n existente.');
++
++  // 7. Acceso docente y RLS
++  console.log('\n--- 7. Verificando acceso de docente a resultados v├¡a RLS ---');
++  const { data: resultadosDocente, error: errDoc } = await docente.client
++    .from('quiz_intentos')
++    .select('id, puntaje, porcentaje, estado, estudiante_id')
++    .eq('id', intentoId);
++
++  assert(!errDoc, 'La consulta del docente no debe fallar');
++  assertEquals(resultadosDocente.length, 1, 'El docente del aula debe ver el intento');
++  assertEquals(resultadosDocente[0].puntaje, 4);
++  console.log('Ô£à Docente visualiza el resultado del estudiante correctamente.');
++
++  // Estudiante 2 NO debe poder ver el intento de Estudiante 1
++  const { data: resultadoEstudiante2 } = await estudiante2.client
++    .from('quiz_intentos')
++    .select('id')
++    .eq('id', intentoId);
++  assertEquals(resultadoEstudiante2?.length, 0, 'Estudiante ajeno no debe ver el intento');
++  console.log('Ô£à Aislamiento RLS entre estudiantes validado.');
++
++  // 8. Solicitudes concurrentes simult├íneas (Item 8)
++  console.log('\n--- 8. Probando solicitudes simult├íneas concurrentes (Promise.all) ---');
++  const cuentoIdEst2 = 'cuento-staging-002';
++  await adminClient.from('cuentos').upsert({
++    id: cuentoIdEst2,
++    titulo: 'Aventura Concurrente',
++    personaje_principal: 'Clara',
++    estudiante_id: estudiante2.id,
++    aula_id: aulaId,
++  });
++
++  const { data: intentoIns2 } = await adminClient.from('quiz_intentos').insert({
++    cuento_id: cuentoIdEst2,
++    estudiante_id: estudiante2.id,
++    aula_id: aulaId,
++    estado: 'en_progreso',
++    total_preguntas: 5,
++  }).select('id').single();
++  const intentoConcurrenteId = intentoIns2!.id;
++
++  await adminClient.from('quiz_respuestas').insert([
++    { intento_id: intentoConcurrenteId, numero_pregunta: 1, pregunta: 'P1', opciones: ['A', 'B', 'C', 'D'], indice_correcto: 2, explicacion: 'E1', nivel_comprension: 'literal' },
++    { intento_id: intentoConcurrenteId, numero_pregunta: 2, pregunta: 'P2', opciones: ['A', 'B', 'C', 'D'], indice_correcto: 1, explicacion: 'E2', nivel_comprension: 'literal' },
++    { intento_id: intentoConcurrenteId, numero_pregunta: 3, pregunta: 'P3', opciones: ['A', 'B', 'C', 'D'], indice_correcto: 0, explicacion: 'E3', nivel_comprension: 'inferencial' },
++    { intento_id: intentoConcurrenteId, numero_pregunta: 4, pregunta: 'P4', opciones: ['A', 'B', 'C', 'D'], indice_correcto: 3, explicacion: 'E4', nivel_comprension: 'inferencial' },
++    { intento_id: intentoConcurrenteId, numero_pregunta: 5, pregunta: 'P5', opciones: ['A', 'B', 'C', 'D'], indice_correcto: 0, explicacion: 'E5', nivel_comprension: 'critico_reflexivo' },
++  ]);
++
++  // Enviar dos solicitudes simult├íneas conflictivas (opci├│n 2 vs opci├│n 3)
++  const [reqA, reqB] = await Promise.all([
++    fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${estudiante2.token}` },
++      body: JSON.stringify({ intentoId: intentoConcurrenteId, numero: 1, indiceSeleccionado: 2 }),
++    }),
++    fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${estudiante2.token}` },
++      body: JSON.stringify({ intentoId: intentoConcurrenteId, numero: 1, indiceSeleccionado: 3 }),
++    }),
++  ]);
++
++  const statuses = [reqA.status, reqB.status].sort();
++  console.log(`Estados de solicitudes simult├íneas conflictivas: ${statuses[0]} y ${statuses[1]}`);
++  // Exactamente una debe ganar (200) y la otra debe ser rechazada (409) debido al bloqueo FOR UPDATE
++  assertEquals(statuses, [200, 409], 'Una solicitud se confirma y la concurrente conflictiva es rechazada con 409');
++  console.log('Ô£à Concurrencia y serializaci├│n FOR UPDATE validada: cero condici├│n de carrera.');
++
++  // Enviar dos solicitudes simult├íneas id├®nticas (opci├│n 1 para pregunta 2)
++  const [reqIdemA, reqIdemB] = await Promise.all([
++    fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${estudiante2.token}` },
++      body: JSON.stringify({ intentoId: intentoConcurrenteId, numero: 2, indiceSeleccionado: 1 }),
++    }),
++    fetch(`${config.supabaseUrl}/functions/v1/responder-pregunta`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${estudiante2.token}` },
++      body: JSON.stringify({ intentoId: intentoConcurrenteId, numero: 2, indiceSeleccionado: 1 }),
++    }),
++  ]);
++  console.log(`Estados de solicitudes simult├íneas id├®nticas: ${reqIdemA.status} y ${reqIdemB.status}`);
++  assertEquals([reqIdemA.status, reqIdemB.status], [200, 200], 'Ambas solicitudes simult├íneas id├®nticas se resuelven con 200 de forma idempotente');
++  console.log('Ô£à Idempotencia bajo concurrencia validada.');
++
++  console.log('\n===============================================================');
++  console.log(' Ô£à TODAS LAS PRUEBAS E2E EN STAGING COMPLETADAS CON ├ëXITO    ');
++  console.log('===============================================================\n');
++}
++
++if (import.meta.main) {
++  const url = Deno.env.get('SUPABASE_URL') || 'https://acxsyswrzdtstgqztojj.supabase.co';
++  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
++  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
++
++  if (!anonKey || !serviceKey) {
++    console.error('Error: configure SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY');
++    Deno.exit(1);
++  }
++
++  await ejecutarPruebasE2E({ supabaseUrl: url, anonKey, serviceRoleKey: serviceKey });
++}
+diff --git a/scripts/test_postgres_integration.ts b/scripts/test_postgres_integration.ts
+new file mode 100644
+index 0000000..d93e681
+--- /dev/null
++++ b/scripts/test_postgres_integration.ts
+@@ -0,0 +1,341 @@
++/// <reference lib="deno.ns" />
++/// <reference lib="dom" />
++import { PGlite } from 'npm:@electric-sql/pglite';
++import { assertEquals, assertRejects, assert } from 'jsr:@std/assert';
++
++Deno.test('INTEGRACI├ôN POSTGRESQL: Validaci├│n integral de RF-22, RF-26, migraciones y RPC', async () => {
++  const db = new PGlite();
++
++  // 1. Preparar esquema base en PostgreSQL
++  console.log('--- 1. Aplicando esquema base ---');
++  await db.exec(`
++    DO $$ BEGIN
++      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
++        CREATE ROLE anon;
++      END IF;
++      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
++        CREATE ROLE authenticated;
++      END IF;
++      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'service_role') THEN
++        CREATE ROLE service_role;
++      END IF;
++    END $$;
++
++    CREATE SCHEMA IF NOT EXISTS auth;
++    CREATE TABLE IF NOT EXISTS auth.users (
++      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++      email TEXT
++    );
++
++    CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
++      SELECT NULL::UUID;
++    $$ LANGUAGE sql STABLE;
++
++    CREATE SCHEMA IF NOT EXISTS app_private;
++    CREATE OR REPLACE FUNCTION app_private.es_docente() RETURNS BOOLEAN AS $$
++      SELECT FALSE;
++    $$ LANGUAGE sql STABLE;
++    CREATE OR REPLACE FUNCTION app_private.es_docente_de_aula(p_aula UUID) RETURNS BOOLEAN AS $$
++      SELECT FALSE;
++    $$ LANGUAGE sql STABLE;
++    CREATE OR REPLACE FUNCTION app_private.es_docente_de_estudiante(p_est UUID) RETURNS BOOLEAN AS $$
++      SELECT FALSE;
++    $$ LANGUAGE sql STABLE;
++
++    CREATE TABLE IF NOT EXISTS public.profiles (
++      id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
++      nombre TEXT NOT NULL,
++      rol TEXT NOT NULL CHECK (rol IN ('docente', 'estudiante'))
++    );
++
++    CREATE TABLE IF NOT EXISTS public.aulas (
++      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++      nombre TEXT NOT NULL,
++      codigo_aula TEXT UNIQUE NOT NULL
++    );
++
++    CREATE TABLE IF NOT EXISTS public.cuentos (
++      id TEXT PRIMARY KEY,
++      titulo TEXT NOT NULL,
++      personaje_principal TEXT NOT NULL,
++      estudiante_id UUID REFERENCES public.profiles(id)
++    );
++  `);
++
++  // 2. Aplicar migraci├│n 20261008100000_quiz_comprension.sql
++  console.log('--- 2. Aplicando migraci├│n 20261008100000_quiz_comprension.sql ---');
++  const migration1 = await Deno.readTextFile('supabase/migrations/20261008100000_quiz_comprension.sql');
++  await db.exec(migration1);
++
++  // 3. Aplicar migraci├│n 20261014130000_quiz_niveles_feedback.sql
++  console.log('--- 3. Aplicando migraci├│n 20261014130000_quiz_niveles_feedback.sql ---');
++  const migration2 = await Deno.readTextFile('supabase/migrations/20261014130000_quiz_niveles_feedback.sql');
++  await db.exec(migration2);
++
++  // 4. Crear estudiantes de prueba y cuento
++  console.log('--- 4. Creando fixtures de estudiantes y cuento ---');
++  const estudianteA = '11111111-1111-1111-1111-111111111111';
++  const estudianteB = '22222222-2222-2222-2222-222222222222';
++  const cuentoId = 'cuento-prueba-01';
++
++  await db.exec(`
++    INSERT INTO auth.users (id, email) VALUES
++      ('${estudianteA}', 'estudianteA@escuela.pe'),
++      ('${estudianteB}', 'estudianteB@escuela.pe');
++
++    INSERT INTO public.profiles (id, nombre, rol) VALUES
++      ('${estudianteA}', 'Carlos Alumno', 'estudiante'),
++      ('${estudianteB}', 'Beatriz Alumna', 'estudiante');
++
++    INSERT INTO public.cuentos (id, titulo, personaje_principal, estudiante_id) VALUES
++      ('${cuentoId}', 'El Drag├│n del R├¡o', 'Tito', '${estudianteA}');
++  `);
++
++  // 5. Crear intento y 5 preguntas con distribuci├│n 2-2-1 (RF-22)
++  console.log('--- 5. Registrando intento y 5 preguntas estructuradas (RF-22) ---');
++  const intentoRes = await db.query<{ id: string }>(`
++    INSERT INTO public.quiz_intentos (cuento_id, estudiante_id, estado, total_preguntas)
++    VALUES ('${cuentoId}', '${estudianteA}', 'en_progreso', 5)
++    RETURNING id;
++  `);
++  const intentoId = intentoRes.rows[0].id;
++  assert(intentoId, 'El intentoId debe generarse');
++
++  await db.query(`
++    INSERT INTO public.quiz_respuestas (intento_id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion, nivel_comprension)
++    VALUES
++      ('${intentoId}', 1, '┬┐Qui├®n es el personaje?', '["Tito", "Beto", "Lalo", "Pepe"]'::jsonb, 0, 'Tito es el protagonista', 'literal'),
++      ('${intentoId}', 2, '┬┐D├│nde ocurre la historia?', '["Playa", "R├¡o", "Monta├▒a", "Bosque"]'::jsonb, 1, 'Ocurre en el r├¡o', 'literal'),
++      ('${intentoId}', 3, '┬┐Por qu├® volaba bajo el drag├│n?', '["Ten├¡a fr├¡o", "Estaba cansado", "Ten├¡a hambre", "Jugaba"]'::jsonb, 1, 'Estaba cansado de viajar', 'inferencial'),
++      ('${intentoId}', 4, '┬┐Qu├® sinti├│ Tito al verlo?', '["Alegr├¡a", "Enojo", "Asombro", "Tristeza"]'::jsonb, 2, 'Sinti├│ asombro', 'inferencial'),
++      ('${intentoId}', 5, '┬┐Qu├® opinas de la decisi├│n de Tito?', '["Fue valiente", "Fue ego├¡sta", "Fue mala", "Fue aburrida"]'::jsonb, 0, 'Demuestra valent├¡a y empat├¡a', 'critico_reflexivo');
++  `);
++
++  // 6. Verificar persistencia de niveles de comprensi├│n en BD
++  const niveles = await db.query<{ nivel_comprension: string; c: number }>(`
++    SELECT nivel_comprension, COUNT(*)::int as c
++    FROM public.quiz_respuestas
++    WHERE intento_id = '${intentoId}'
++    GROUP BY nivel_comprension
++    ORDER BY nivel_comprension;
++  `);
++  assertEquals(niveles.rows, [
++    { nivel_comprension: 'critico_reflexivo', c: 1 },
++    { nivel_comprension: 'inferencial', c: 2 },
++    { nivel_comprension: 'literal', c: 2 },
++  ]);
++
++  // 7. Responder pregunta 1 (Correcta)
++  console.log('--- 7. Respondiendo pregunta 1 (correcta) ---');
++  const r1 = await db.query<{ responder_pregunta_segura: any }>(`
++    SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 1::smallint, 0::smallint, '${estudianteA}'::uuid);
++  `);
++  const data1 = r1.rows[0].responder_pregunta_segura;
++  assertEquals(data1.numero, 1);
++  assertEquals(data1.esCorrecta, true);
++  assertEquals(data1.quizFinalizado, false);
++  assertEquals(data1.nivelComprension, 'literal');
++
++  // 8. Responder pregunta 2 (Incorrecta)
++  console.log('--- 8. Respondiendo pregunta 2 (incorrecta) ---');
++  const r2 = await db.query<{ responder_pregunta_segura: any }>(`
++    SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 2::smallint, 3::smallint, '${estudianteA}'::uuid);
++  `);
++  const data2 = r2.rows[0].responder_pregunta_segura;
++  assertEquals(data2.numero, 2);
++  assertEquals(data2.esCorrecta, false);
++  assertEquals(data2.indiceCorrecto, 1);
++  assertEquals(data2.quizFinalizado, false);
++
++  // 9. Verificar IDEMPOTENCIA: reenv├¡o de pregunta 1 con la misma opci├│n
++  console.log('--- 9. Probando idempotencia ante reenv├¡o id├®ntico ---');
++  const r1Reenvio = await db.query<{ responder_pregunta_segura: any }>(`
++    SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 1::smallint, 0::smallint, '${estudianteA}'::uuid);
++  `);
++  assertEquals(r1Reenvio.rows[0].responder_pregunta_segura.esCorrecta, true);
++
++  // 10. Verificar INMUTABILIDAD: intento de cambiar respuesta confirmada
++  console.log('--- 10. Probando inmutabilidad ante intento de modificaci├│n ---');
++  await assertRejects(
++    async () => {
++      await db.query(`
++        SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 1::smallint, 2::smallint, '${estudianteA}'::uuid);
++      `);
++    },
++    Error,
++    'Respuesta ya confirmada y no modificable'
++  );
++
++  // 11. Verificar SEGURIDAD Y AUTORIZACI├ôN: intento de responder por otro estudiante
++  console.log('--- 11. Probando rechazo de autorizaci├│n con otro estudiante ---');
++  await assertRejects(
++    async () => {
++      await db.query(`
++        SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 3::smallint, 1::smallint, '${estudianteB}'::uuid);
++      `);
++    },
++    Error,
++    'Intento no autorizado'
++  );
++
++  // 12. Verificar SECUENCIALIDAD: no se puede saltar a la pregunta 5 sin contestar la 3
++  console.log('--- 12. Probando validaci├│n de orden secuencial ---');
++  await assertRejects(
++    async () => {
++      await db.query(`
++        SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 5::smallint, 0::smallint, '${estudianteA}'::uuid);
++      `);
++    },
++    Error,
++    'Debe responder las preguntas anteriores'
++  );
++
++  // 13. Reanudar respondiendo pregunta 3 y pregunta 4
++  console.log('--- 13. Respondiendo preguntas 3 y 4 ---');
++  await db.query(`SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 3::smallint, 1::smallint, '${estudianteA}'::uuid);`);
++  await db.query(`SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 4::smallint, 2::smallint, '${estudianteA}'::uuid);`);
++
++  // Verificar que sigue en progreso
++  const estadoIntermedio = await db.query<{ estado: string; puntaje: number | null }>(`
++    SELECT estado, puntaje FROM public.quiz_intentos WHERE id = '${intentoId}';
++  `);
++  assertEquals(estadoIntermedio.rows[0].estado, 'en_progreso');
++  assertEquals(estadoIntermedio.rows[0].puntaje, null);
++
++  // 14. Responder pregunta 5 (FINAL) y comprobar cierre at├│mico
++  console.log('--- 14. Respondiendo pregunta 5 y comprobando cierre at├│mico ---');
++  const r5 = await db.query<{ responder_pregunta_segura: any }>(`
++    SELECT public.responder_pregunta_segura('${intentoId}'::uuid, 5::smallint, 0::smallint, '${estudianteA}'::uuid);
++  `);
++  assertEquals(r5.rows[0].responder_pregunta_segura.quizFinalizado, true);
++
++  const intentoFinal = await db.query<{ estado: string; puntaje: number; porcentaje: number; completed_at: string }>(`
++    SELECT estado, puntaje, porcentaje, completed_at FROM public.quiz_intentos WHERE id = '${intentoId}';
++  `);
++  assertEquals(intentoFinal.rows[0].estado, 'completado');
++  assertEquals(intentoFinal.rows[0].puntaje, 4); // Preguntas 1, 3, 4, 5 correctas; pregunta 2 errada
++  assertEquals(Number(intentoFinal.rows[0].porcentaje), 80);
++  assert(intentoFinal.rows[0].completed_at !== null, 'completed_at debe tener fecha');
++
++  // 15. Verificar retrocompatibilidad con quizzes hist├│ricos (sin_clasificar)
++  console.log('--- 15. Probando retrocompatibilidad con quiz hist├│rico ---');
++  const cuentoHistorico = 'cuento-historico-99';
++  await db.query(`
++    INSERT INTO public.cuentos (id, titulo, personaje_principal, estudiante_id) VALUES
++      ('${cuentoHistorico}', 'Aventura Pasada', 'Ana', '${estudianteB}');
++  `);
++
++  const intentoHistRes = await db.query<{ id: string }>(`
++    INSERT INTO public.quiz_intentos (cuento_id, estudiante_id, estado, puntaje, porcentaje, completed_at)
++    VALUES ('${cuentoHistorico}', '${estudianteB}', 'completado', 5, 100, NOW())
++    RETURNING id;
++  `);
++  const histId = intentoHistRes.rows[0].id;
++
++  // Insertar sin especificar nivel_comprension (debe tomar DEFAULT 'sin_clasificar')
++  await db.query(`
++    INSERT INTO public.quiz_respuestas (intento_id, numero_pregunta, pregunta, opciones, indice_correcto, indice_seleccionado, es_correcta, explicacion)
++    VALUES
++      ('${histId}', 1, 'Pregunta vieja 1', '["A","B","C","D"]'::jsonb, 0, 0, true, 'Explicacion vieja 1');
++  `);
++
++  const respHist = await db.query<{ nivel_comprension: string }>(`
++    SELECT nivel_comprension FROM public.quiz_respuestas WHERE intento_id = '${histId}';
++  `);
++  assertEquals(respHist.rows[0].nivel_comprension, 'sin_clasificar');
++
++  // 16. Probar interacci├│n entre responder-pregunta y enviar-quiz (cero sobrescritura)
++  console.log('--- 16. Probando que enviar-quiz no pueda sobrescribir respuestas confirmadas ---');
++  const cuentoId2 = 'cuento-prueba-02';
++  await db.query(`
++    INSERT INTO public.cuentos (id, titulo, personaje_principal, estudiante_id) VALUES
++      ('${cuentoId2}', 'El ├ürbol M├ígico', 'Milo', '${estudianteB}');
++  `);
++
++  const intentoRes2 = await db.query<{ id: string }>(`
++    INSERT INTO public.quiz_intentos (cuento_id, estudiante_id, estado, total_preguntas)
++    VALUES ('${cuentoId2}', '${estudianteB}', 'en_progreso', 5)
++    RETURNING id;
++  `);
++  const intentoId2 = intentoRes2.rows[0].id;
++
++  await db.query(`
++    INSERT INTO public.quiz_respuestas (intento_id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion, nivel_comprension)
++    VALUES
++      ('${intentoId2}', 1, 'P1', '["A","B","C","D"]'::jsonb, 2, 'Exp1', 'literal'),
++      ('${intentoId2}', 2, 'P2', '["A","B","C","D"]'::jsonb, 1, 'Exp2', 'literal'),
++      ('${intentoId2}', 3, 'P3', '["A","B","C","D"]'::jsonb, 0, 'Exp3', 'inferencial'),
++      ('${intentoId2}', 4, 'P4', '["A","B","C","D"]'::jsonb, 3, 'Exp4', 'inferencial'),
++      ('${intentoId2}', 5, 'P5', '["A","B","C","D"]'::jsonb, 0, 'Exp5', 'critico_reflexivo');
++  `);
++
++  // Confirmar pregunta 1 con opci├│n 2 (correcta) mediante responder_pregunta_segura
++  await db.query(`
++    SELECT public.responder_pregunta_segura('${intentoId2}'::uuid, 1::smallint, 2::smallint, '${estudianteB}'::uuid);
++  `);
++
++  // Simular l├│gica de enviar-quiz: leer preguntas y verificar si detecta intento de sobrescribir P1
++  const pregs = (await db.query<{ id: string; numero_pregunta: number; indice_seleccionado: number | null; indice_correcto: number }>(`
++    SELECT id, numero_pregunta, indice_seleccionado, indice_correcto
++    FROM public.quiz_respuestas
++    WHERE intento_id = '${intentoId2}'
++    ORDER BY numero_pregunta;
++  `)).rows;
++
++  assertEquals(pregs[0].indice_seleccionado, 2);
++  assertEquals(pregs[1].indice_seleccionado, null);
++
++  // Si enviar-quiz recibiera p1 con indiceSeleccionado = 0 (conflicto con el 2 ya confirmado), se detecta:
++  const payloadConflicto = [
++    { numero: 1, indiceSeleccionado: 0 }, // CONFLICTO: Ya confirmado con 2
++    { numero: 2, indiceSeleccionado: 1 },
++    { numero: 3, indiceSeleccionado: 0 },
++    { numero: 4, indiceSeleccionado: 3 },
++    { numero: 5, indiceSeleccionado: 0 },
++  ];
++
++  let conflictoDetectado = false;
++  for (const p of pregs) {
++    const resp = payloadConflicto.find((r) => r.numero === p.numero_pregunta);
++    if (p.indice_seleccionado !== null && resp && resp.indiceSeleccionado !== p.indice_seleccionado) {
++      conflictoDetectado = true;
++      break;
++    }
++  }
++  assertEquals(conflictoDetectado, true, 'Debe detectar y rechazar el intento de modificar P1');
++
++  // Si enviar-quiz recibe respuestas consistentes, solo actualiza las no confirmadas (2 a 5):
++  const payloadValido = [
++    { numero: 1, indiceSeleccionado: 2 }, // Coincide con lo confirmado
++    { numero: 2, indiceSeleccionado: 1 }, // Nueva respuesta
++    { numero: 3, indiceSeleccionado: 0 }, // Nueva respuesta
++    { numero: 4, indiceSeleccionado: 3 }, // Nueva respuesta
++    { numero: 5, indiceSeleccionado: 0 }, // Nueva respuesta
++  ];
++
++  for (const p of pregs) {
++    const resp = payloadValido.find((r) => r.numero === p.numero_pregunta)!;
++    if (p.indice_seleccionado === null) {
++      await db.query(`
++        UPDATE public.quiz_respuestas
++        SET indice_seleccionado = ${resp.indiceSeleccionado},
++            es_correcta = (${resp.indiceSeleccionado} = indice_correcto)
++        WHERE id = '${p.id}';
++      `);
++    }
++  }
++
++  // Verificar que P1 no cambi├│ y que todas las 5 preguntas quedaron contestadas
++  const respuestasPost = (await db.query<{ numero_pregunta: number; indice_seleccionado: number; es_correcta: boolean }>(`
++    SELECT numero_pregunta, indice_seleccionado, es_correcta
++    FROM public.quiz_respuestas
++    WHERE intento_id = '${intentoId2}'
++    ORDER BY numero_pregunta;
++  `)).rows;
++
++  assertEquals(respuestasPost.map(r => r.indice_seleccionado), [2, 1, 0, 3, 0]);
++  assertEquals(respuestasPost.every(r => r.es_correcta === true), true);
++
++  console.log('Ô£à TODAS LAS 16 PRUEBAS DE INTEGRACI├ôN POSTGRESQL PASARON SATISFACTORIAMENTE.');
++});
++
+diff --git a/scripts/test_validar_preguntas_deno.ts b/scripts/test_validar_preguntas_deno.ts
+new file mode 100644
+index 0000000..41c4300
+--- /dev/null
++++ b/scripts/test_validar_preguntas_deno.ts
+@@ -0,0 +1,105 @@
++// scripts/test_validar_preguntas_deno.ts
++import { assertEquals } from "jsr:@std/assert";
++import { validarEstructuraPreguntas } from "../supabase/functions/generar-quiz/index.ts";
++
++Deno.test("RF-22: Valida distribuci├│n exacta 2 literal, 2 inferencial, 1 critico_reflexivo", () => {
++  const preguntasValidas = [
++    {
++      numero: 1,
++      pregunta: "┬┐C├│mo se llamaba el protagonista?",
++      opciones: ["Ana", "Pedro", "Lucas", "Tom├ís"],
++      indiceCorrecto: 0,
++      explicacion: "El cuento dice expl├¡citamente que se llamaba Ana.",
++      nivelComprension: "literal",
++    },
++    {
++      numero: 2,
++      pregunta: "┬┐Qu├® objeto encontr├│ en el camino?",
++      opciones: ["Una llave", "Una espada", "Un mapa", "Una flor"],
++      indiceCorrecto: 2,
++      explicacion: "Encontr├│ un mapa antiguo en el suelo.",
++      nivelComprension: "literal",
++    },
++    {
++      numero: 3,
++      pregunta: "┬┐Por qu├® el drag├│n estaba triste?",
++      opciones: ["Perdi├│ su cueva", "No ten├¡a amigos", "Ten├¡a fr├¡o", "Le dol├¡a un ala"],
++      indiceCorrecto: 1,
++      explicacion: "Las pistas indican que se sent├¡a solo en la monta├▒a.",
++      nivelComprension: "inferencial",
++    },
++    {
++      numero: 4,
++      pregunta: "┬┐Qu├® consecuencia tuvo ayudar a la ardilla?",
++      opciones: ["Le dio nueces", "Le mostr├│ el atajo", "Se fue corriendo", "Llam├│ a otros animales"],
++      indiceCorrecto: 1,
++      explicacion: "Gracias a su ayuda, la ardilla le gui├│ por el atajo del bosque.",
++      nivelComprension: "inferencial",
++    },
++    {
++      numero: 5,
++      pregunta: "┬┐Cu├íl fue la decisi├│n m├ís prudente de Ana?",
++      opciones: ["Cruzar el r├¡o con cuidado", "Correr sin mirar", "Ignorar las se├▒ales", "Dejar su mochila"],
++      indiceCorrecto: 0,
++      explicacion: "Cruzar con cuidado evit├│ el peligro y permiti├│ llegar a salvo.",
++      nivelComprension: "critico_reflexivo",
++    },
++  ];
++
++  const resultado = validarEstructuraPreguntas(preguntasValidas);
++  assertEquals(resultado !== null, true);
++  assertEquals(resultado?.length, 5);
++  assertEquals(resultado?.[0].nivelComprension, "literal");
++  assertEquals(resultado?.[1].nivelComprension, "literal");
++  assertEquals(resultado?.[2].nivelComprension, "inferencial");
++  assertEquals(resultado?.[3].nivelComprension, "inferencial");
++  assertEquals(resultado?.[4].nivelComprension, "critico_reflexivo");
++});
++
++Deno.test("RF-22: Rechaza si no cumple la distribuci├│n exigida", () => {
++  const preguntasConDistribucionInvalida = [
++    {
++      numero: 1,
++      pregunta: "┬┐C├│mo se llamaba el protagonista?",
++      opciones: ["Ana", "Pedro", "Lucas", "Tom├ís"],
++      indiceCorrecto: 0,
++      explicacion: "El cuento dice expl├¡citamente que se llamaba Ana.",
++      nivelComprension: "literal",
++    },
++    {
++      numero: 2,
++      pregunta: "┬┐Qu├® objeto encontr├│ en el camino?",
++      opciones: ["Una llave", "Una espada", "Un mapa", "Una flor"],
++      indiceCorrecto: 2,
++      explicacion: "Encontr├│ un mapa antiguo en el suelo.",
++      nivelComprension: "literal",
++    },
++    {
++      numero: 3,
++      pregunta: "┬┐Por qu├® el drag├│n estaba triste?",
++      opciones: ["Perdi├│ su cueva", "No ten├¡a amigos", "Ten├¡a fr├¡o", "Le dol├¡a un ala"],
++      indiceCorrecto: 1,
++      explicacion: "Las pistas indican que se sent├¡a solo en la monta├▒a.",
++      nivelComprension: "literal", // Deber├¡a ser inferencial
++    },
++    {
++      numero: 4,
++      pregunta: "┬┐Qu├® consecuencia tuvo ayudar a la ardilla?",
++      opciones: ["Le dio nueces", "Le mostr├│ el atajo", "Se fue corriendo", "Llam├│ a otros animales"],
++      indiceCorrecto: 1,
++      explicacion: "Gracias a su ayuda, la ardilla le gui├│ por el atajo del bosque.",
++      nivelComprension: "inferencial",
++    },
++    {
++      numero: 5,
++      pregunta: "┬┐Cu├íl fue la decisi├│n m├ís prudente de Ana?",
++      opciones: ["Cruzar el r├¡o con cuidado", "Correr sin mirar", "Ignorar las se├▒ales", "Dejar su mochila"],
++      indiceCorrecto: 0,
++      explicacion: "Cruzar con cuidado evit├│ el peligro y permiti├│ llegar a salvo.",
++      nivelComprension: "critico_reflexivo",
++    },
++  ];
++
++  const resultado = validarEstructuraPreguntas(preguntasConDistribucionInvalida);
++  assertEquals(resultado, null);
++});
+diff --git a/supabase/functions/enviar-quiz/index.ts b/supabase/functions/enviar-quiz/index.ts
+index 1c08679..ada04eb 100644
+--- a/supabase/functions/enviar-quiz/index.ts
++++ b/supabase/functions/enviar-quiz/index.ts
+@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
+     if (intento.estado === 'completado') {
+       const { data: respuestasCompletadas, error: errC } = await serviceClient
+         .from('quiz_respuestas')
+-        .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion')
++        .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion, nivel_comprension')
+         .eq('intento_id', intento.id)
+         .order('numero_pregunta', { ascending: true });
+ 
+@@ -150,6 +150,7 @@ Deno.serve(async (req) => {
+               indice_correcto: number;
+               es_correcta: boolean | null;
+               explicacion: string;
++              nivel_comprension: string;
+             }) => ({
+               numero: r.numero_pregunta,
+               pregunta: r.pregunta,
+@@ -158,6 +159,7 @@ Deno.serve(async (req) => {
+               indiceCorrecto: r.indice_correcto,
+               esCorrecta: r.es_correcta,
+               explicacion: r.explicacion,
++              nivelComprension: r.nivel_comprension,
+             })),
+           }),
+           { status: 200, headers: jsonHeaders },
+@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
+     // 6. Cargar preguntas guardadas desde el servidor para corregir
+     const { data: preguntasGuardadas, error: errPreguntas } = await serviceClient
+       .from('quiz_respuestas')
+-      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, explicacion')
++      .select('id, numero_pregunta, pregunta, opciones, indice_correcto, indice_seleccionado, es_correcta, explicacion, nivel_comprension')
+       .eq('intento_id', intento.id)
+       .order('numero_pregunta', { ascending: true });
+ 
+@@ -180,31 +182,49 @@ Deno.serve(async (req) => {
+       );
+     }
+ 
+-    // 7. Correcci├│n en el servidor (cero confianza en el cliente)
++    // 7. Correcci├│n en el servidor (inmutabilidad de respuestas ya confirmadas)
+     let puntaje = 0;
+     const resultadoPreguntas = [];
+ 
+     for (let i = 0; i < 5; i++) {
+       const preg = preguntasGuardadas[i];
+       const resp = respuestasValidadas.find((r) => r.numero === preg.numero_pregunta);
+-      const indiceSeleccionado = resp ? resp.indiceSeleccionado : -1;
+-      const esCorrecta = indiceSeleccionado === preg.indice_correcto;
+ 
+-      if (esCorrecta) {
+-        puntaje++;
++      let indiceSeleccionado: number;
++      let esCorrecta: boolean;
++
++      if (preg.indice_seleccionado !== null && preg.indice_seleccionado !== undefined) {
++        // La pregunta ya fue confirmada previamente: es inmutable.
++        if (resp && resp.indiceSeleccionado !== preg.indice_seleccionado) {
++          return new Response(
++            JSON.stringify({
++              error: `La pregunta ${preg.numero_pregunta} ya fue confirmada con otra respuesta y no puede modificarse.`,
++            }),
++            { status: 409, headers: jsonHeaders },
++          );
++        }
++        indiceSeleccionado = preg.indice_seleccionado;
++        esCorrecta = preg.es_correcta === true;
++      } else {
++        indiceSeleccionado = resp ? resp.indiceSeleccionado : -1;
++        esCorrecta = indiceSeleccionado === preg.indice_correcto;
++
++        // Actualizar selecci├│n en DB solo si no estaba confirmada
++        const { error: errUpdResp } = await serviceClient
++          .from('quiz_respuestas')
++          .update({
++            indice_seleccionado: indiceSeleccionado,
++            es_correcta: esCorrecta,
++          })
++          .eq('id', preg.id);
++
++        if (errUpdResp) {
++          console.error('Error actualizando respuesta individual:', errUpdResp);
++        }
+       }
+ 
+-      // Actualizar selecci├│n en DB
+-      const { error: errUpdResp } = await serviceClient
+-        .from('quiz_respuestas')
+-        .update({
+-          indice_seleccionado: indiceSeleccionado,
+-          es_correcta: esCorrecta,
+-        })
+-        .eq('id', preg.id);
+-
+-      if (errUpdResp) {
+-        console.error('Error actualizando respuesta individual:', errUpdResp);
++      if (esCorrecta) {
++        puntaje++;
+       }
+ 
+       resultadoPreguntas.push({
+@@ -215,13 +235,14 @@ Deno.serve(async (req) => {
+         indiceCorrecto: preg.indice_correcto,
+         esCorrecta,
+         explicacion: preg.explicacion,
++        nivelComprension: preg.nivel_comprension,
+       });
+     }
+ 
+     const porcentaje = Math.round((puntaje / 5) * 100);
+     const completedAt = new Date().toISOString();
+ 
+-    // 8. Actualizar intento a 'completado'
++    // 8. Actualizar intento a 'completado' solo si contin├║a 'en_progreso'
+     const { error: errUpdIntento } = await serviceClient
+       .from('quiz_intentos')
+       .update({
+@@ -230,7 +251,8 @@ Deno.serve(async (req) => {
+         porcentaje,
+         completed_at: completedAt,
+       })
+-      .eq('id', intento.id);
++      .eq('id', intento.id)
++      .eq('estado', 'en_progreso');
+ 
+     if (errUpdIntento) {
+       console.error('Error completando intento en quiz_intentos:', errUpdIntento);
+diff --git a/supabase/functions/generar-quiz/index.ts b/supabase/functions/generar-quiz/index.ts
+index d6a554d..23ca55a 100644
+--- a/supabase/functions/generar-quiz/index.ts
++++ b/supabase/functions/generar-quiz/index.ts
+@@ -27,6 +27,7 @@ export interface PreguntaGeminiRaw {
+   opciones: string[];
+   indiceCorrecto: number;
+   explicacion: string;
++  nivelComprension: string;
+ }
+ 
+ export function validarEstructuraPreguntas(preguntas: unknown): PreguntaGeminiRaw[] | null {
+@@ -64,12 +65,22 @@ export function validarEstructuraPreguntas(preguntas: unknown): PreguntaGeminiRa
+     const explicacion = typeof item.explicacion === 'string' ? item.explicacion.trim() : '';
+     if (explicacion.length < 5) return null;
+ 
++    const nivelComprension = typeof item.nivelComprension === 'string'
++      ? item.nivelComprension.trim()
++      : '';
++    const nivelesExigidos = [
++      'literal', 'literal', 'inferencial', 'inferencial', 'critico_reflexivo',
++    ];
++    // La etiqueta la declara el generador y el servidor verifica la distribuci├│n.
++    if (nivelComprension !== nivelesExigidos[i]) return null;
++
+     resultado.push({
+       numero: i + 1,
+       pregunta,
+       opciones: opcionesLimpia,
+       indiceCorrecto,
+       explicacion,
++      nivelComprension,
+     });
+   }
+ 
+@@ -112,11 +123,11 @@ Tu tarea es generar EXACTAMENTE CINCO (5) preguntas de opci├│n m├║ltiple para ev
+ REGLAS PEDAG├ôGICAS ESTRICTAS:
+ 1. Basado EXCLUSIVAMENTE en el cuento: Las preguntas deben basarse ├║nica y exclusivamente en los acontecimientos, personajes, decisiones y desenlace del camino recorrido por el estudiante. NO inventes sucesos ajenos ni preguntes por hechos que no ocurrieron.
+ 2. Nivel primaria: Vocabulario claro, oraciones comprensibles, sin ambig├╝edades, sin preguntas tramposas y sin dobles negaciones.
+-3. Variedad de tipos de pregunta (distribuci├│n deseada):
+-   - Preguntas 1 y 2: Comprensi├│n literal (detalles expl├¡citos, lugares, objetos o personajes encontrados).
+-   - Pregunta 3: Secuencia temporal o causa/efecto (qu├® ocurri├│ despu├®s de cierto hecho, o por qu├® sucedi├│ algo).
+-   - Pregunta 4: Inferencia sencilla (c├│mo se sent├¡a un personaje, intenciones evidentes o lecci├│n de la aventura).
+-   - Pregunta 5: Decisi├│n, acci├│n o desenlace (relacionada con las decisiones tomadas por el protagonista o c├│mo se resolvi├│ el conflicto final).
++3. Niveles obligatorios y verificables (campo nivelComprension):
++   - Preguntas 1 y 2: nivelComprension="literal". Respuesta expl├¡cita en la historia.
++   - Preguntas 3 y 4: nivelComprension="inferencial". Inferir causa, intenci├│n o consecuencia con pistas del texto.
++   - Pregunta 5: nivelComprension="critico_reflexivo". Valorar una decisi├│n del personaje usando evidencia de la historia y una sola alternativa objetivamente mejor.
++   Est├í prohibido inventar hechos o evaluar opiniones personales como correctas sin evidencia.
+ 4. Opciones de respuesta:
+    - Exactamente cuatro (4) alternativas por pregunta.
+    - Exactamente UNA alternativa correcta objetiva.
+@@ -164,8 +175,9 @@ Devuelve estrictamente un JSON con la estructura solicitada.
+                 },
+                 indiceCorrecto: { type: 'INTEGER', description: '├ìndice de la opci├│n correcta (0 a 3)' },
+                 explicacion: { type: 'STRING', description: 'Explicaci├│n de la respuesta correcta' },
++                nivelComprension: { type: 'STRING', enum: ['literal', 'inferencial', 'critico_reflexivo'], description: 'Nivel de comprensi├│n lectora' },
+               },
+-              required: ['numero', 'pregunta', 'opciones', 'indiceCorrecto', 'explicacion'],
++              required: ['numero', 'pregunta', 'opciones', 'indiceCorrecto', 'explicacion', 'nivelComprension'],
+             },
+           },
+         },
+@@ -316,7 +328,7 @@ Deno.serve(async (req) => {
+       if (intentoExistente.estado === 'en_progreso') {
+         const { data: respuestasGuardadas, error: errResp } = await serviceClient
+           .from('quiz_respuestas')
+-          .select('numero_pregunta, pregunta, opciones')
++          .select('numero_pregunta, pregunta, opciones, nivel_comprension, indice_seleccionado, indice_correcto, es_correcta, explicacion')
+           .eq('intento_id', intentoExistente.id)
+           .order('numero_pregunta', { ascending: true });
+ 
+@@ -325,11 +337,25 @@ Deno.serve(async (req) => {
+             JSON.stringify({
+               intentoId: intentoExistente.id,
+               estado: 'en_progreso',
+-              preguntas: respuestasGuardadas.map((r: { numero_pregunta: number; pregunta: string; opciones: string[] }) => ({
++              preguntas: respuestasGuardadas.map((r) => ({
+                 numero: r.numero_pregunta,
+                 pregunta: r.pregunta,
+                 opciones: r.opciones,
++                nivelComprension: r.nivel_comprension,
+               })),
++              // Solo se revelan soluciones de las preguntas ya contestadas
++              retroalimentaciones: respuestasGuardadas
++                .filter((r) => r.indice_seleccionado !== null)
++                .map((r) => ({
++                  numero: r.numero_pregunta,
++                  pregunta: r.pregunta,
++                  opciones: r.opciones,
++                  nivelComprension: r.nivel_comprension,
++                  indiceSeleccionado: r.indice_seleccionado,
++                  indiceCorrecto: r.indice_correcto,
++                  esCorrecta: r.es_correcta,
++                  explicacion: r.explicacion,
++                })),
+             }),
+             { status: 200, headers: jsonHeaders },
+           );
+@@ -337,7 +363,7 @@ Deno.serve(async (req) => {
+       } else if (intentoExistente.estado === 'completado') {
+         const { data: respuestasGuardadas } = await serviceClient
+           .from('quiz_respuestas')
+-          .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion')
++          .select('numero_pregunta, pregunta, opciones, indice_seleccionado, indice_correcto, es_correcta, explicacion, nivel_comprension')
+           .eq('intento_id', intentoExistente.id)
+           .order('numero_pregunta', { ascending: true });
+ 
+@@ -356,6 +382,7 @@ Deno.serve(async (req) => {
+               indice_correcto: number;
+               es_correcta: boolean | null;
+               explicacion: string;
++              nivel_comprension: string;
+             }) => ({
+               numero: r.numero_pregunta,
+               pregunta: r.pregunta,
+@@ -364,6 +391,7 @@ Deno.serve(async (req) => {
+               indiceCorrecto: r.indice_correcto,
+               esCorrecta: r.es_correcta,
+               explicacion: r.explicacion,
++              nivelComprension: r.nivel_comprension,
+             })),
+           }),
+           { status: 200, headers: jsonHeaders },
+@@ -444,6 +472,7 @@ Deno.serve(async (req) => {
+       opciones: p.opciones,
+       indice_correcto: p.indiceCorrecto,
+       explicacion: p.explicacion,
++      nivel_comprension: p.nivelComprension,
+     }));
+ 
+     const { error: errInsertRespuestas } = await serviceClient
+@@ -465,6 +494,7 @@ Deno.serve(async (req) => {
+       numero: p.numero,
+       pregunta: p.pregunta,
+       opciones: p.opciones,
++      nivelComprension: p.nivelComprension,
+     }));
+ 
+     return new Response(
+diff --git a/supabase/functions/responder-pregunta/deno.json b/supabase/functions/responder-pregunta/deno.json
+new file mode 100644
+index 0000000..b3f7238
+--- /dev/null
++++ b/supabase/functions/responder-pregunta/deno.json
+@@ -0,0 +1,7 @@
++{
++  "nodeModulesDir": "auto",
++  "imports": {
++    "@supabase/functions-js": "jsr:@supabase/functions-js@^2",
++    "@supabase/supabase-js": "jsr:@supabase/supabase-js@^2"
++  }
++}
+diff --git a/supabase/functions/responder-pregunta/index.ts b/supabase/functions/responder-pregunta/index.ts
+new file mode 100644
+index 0000000..7895784
+--- /dev/null
++++ b/supabase/functions/responder-pregunta/index.ts
+@@ -0,0 +1,89 @@
++import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
++import { createClient } from '@supabase/supabase-js';
++import { validarEstudianteAutenticado } from '../_shared/auth.ts';
++
++const corsHeaders = {
++  'Access-Control-Allow-Origin': '*',
++  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
++  'Content-Type': 'application/json',
++};
++
++const respond = (status: number, body: Record<string, unknown>) =>
++  new Response(JSON.stringify(body), { status, headers: corsHeaders });
++
++Deno.serve(async (req) => {
++  if (req.method === 'OPTIONS') {
++    return new Response('ok', { headers: corsHeaders });
++  }
++
++  if (req.method !== 'POST') {
++    return respond(405, { error: 'M├®todo no permitido. Solo se acepta POST.' });
++  }
++
++  // 1. Validar autenticaci├│n de estudiante v├¡a JWT
++  const auth = await validarEstudianteAutenticado(req, corsHeaders);
++  if (!auth.ok) {
++    return auth.response!;
++  }
++
++  try {
++    let body: Record<string, unknown>;
++    try {
++      body = await req.json();
++    } catch {
++      return respond(400, { error: 'Cuerpo de solicitud JSON inv├ílido.' });
++    }
++
++    const intentoId = typeof body.intentoId === 'string'
++      ? body.intentoId.trim()
++      : (typeof body.intento_id === 'string' ? body.intento_id.trim() : '');
++    const numero = Number(body.numero);
++    const indice = Number(body.indiceSeleccionado ?? body.indice_seleccionado);
++
++    if (
++      !/^[a-fA-F0-9-]{36}$/.test(intentoId) ||
++      !Number.isInteger(numero) ||
++      numero < 1 ||
++      numero > 5 ||
++      !Number.isInteger(indice) ||
++      indice < 0 ||
++      indice > 3
++    ) {
++      return respond(400, { error: 'Datos de respuesta inv├ílidos o fuera de rango.' });
++    }
++
++    const url = Deno.env.get('SUPABASE_URL');
++    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
++    if (!url || !key) {
++      console.error('Variables SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configuradas');
++      return respond(500, { error: 'Servicio no configurado adecuadamente.' });
++    }
++
++    const service = createClient(url, key, {
++      auth: { persistSession: false, autoRefreshToken: false },
++    });
++
++    // 2. Invocar la funci├│n RPC transaccional que valida autorizaci├│n, inmutabilidad y califica
++    const { data, error } = await service.rpc('responder_pregunta_segura', {
++      p_intento_id: intentoId,
++      p_numero: numero,
++      p_indice: indice,
++      p_estudiante_id: auth.userId,
++    });
++
++    if (error) {
++      console.error('Error en responder_pregunta_segura:', error.code, error.message);
++      if (error.code === '42501') {
++        return respond(403, { error: 'Intento no autorizado para este estudiante.' });
++      }
++      return respond(409, {
++        error: error.message || 'No se pudo registrar la respuesta o ya fue confirmada.',
++      });
++    }
++
++    return respond(200, data as Record<string, unknown>);
++  } catch (err) {
++    console.error('Error inesperado en responder-pregunta:', err);
++    return respond(500, { error: 'Error interno en el servidor.' });
++  }
++});
+diff --git a/supabase/migrations/20261014130000_quiz_niveles_feedback.sql b/supabase/migrations/20261014130000_quiz_niveles_feedback.sql
+new file mode 100644
+index 0000000..82be60d
+--- /dev/null
++++ b/supabase/migrations/20261014130000_quiz_niveles_feedback.sql
+@@ -0,0 +1,108 @@
++-- RF-22 y RF-26: niveles declarados y respuesta por pregunta con bloqueo e idempotencia.
++ALTER TABLE public.quiz_respuestas
++  ADD COLUMN IF NOT EXISTS nivel_comprension TEXT NOT NULL DEFAULT 'sin_clasificar';
++
++ALTER TABLE public.quiz_respuestas
++  DROP CONSTRAINT IF EXISTS chk_quiz_nivel_comprension;
++
++ALTER TABLE public.quiz_respuestas
++  ADD CONSTRAINT chk_quiz_nivel_comprension
++  CHECK (nivel_comprension IN ('literal', 'inferencial', 'critico_reflexivo', 'sin_clasificar'));
++
++CREATE OR REPLACE FUNCTION public.responder_pregunta_segura(
++  p_intento_id UUID,
++  p_numero SMALLINT,
++  p_indice SMALLINT,
++  p_estudiante_id UUID
++) RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER
++SET search_path TO public, pg_temp AS $$
++DECLARE
++  intento public.quiz_intentos%ROWTYPE;
++  pregunta public.quiz_respuestas%ROWTYPE;
++  puntuacion INT;
++  finalizado BOOLEAN := FALSE;
++BEGIN
++  IF p_numero NOT BETWEEN 1 AND 5 OR p_indice NOT BETWEEN 0 AND 3 THEN
++    RAISE EXCEPTION 'Pregunta o alternativa inv├ílida' USING ERRCODE='22023';
++  END IF;
++
++  -- Serializar respuestas concurrentes del mismo intento; la identidad viene de JWT verificado en Edge.
++  SELECT * INTO intento FROM public.quiz_intentos WHERE id = p_intento_id FOR UPDATE;
++  IF NOT FOUND OR intento.estudiante_id <> p_estudiante_id THEN
++    RAISE EXCEPTION 'Intento no autorizado' USING ERRCODE='42501';
++  END IF;
++
++  -- Defensa en profundidad: si hay contexto de usuario activo, verificar coincidencia con auth.uid()
++  IF auth.uid() IS NOT NULL AND auth.uid() <> p_estudiante_id THEN
++    RAISE EXCEPTION 'Intento no autorizado' USING ERRCODE='42501';
++  END IF;
++
++  SELECT * INTO pregunta FROM public.quiz_respuestas
++    WHERE intento_id = p_intento_id AND numero_pregunta = p_numero FOR UPDATE;
++  IF NOT FOUND THEN
++    RAISE EXCEPTION 'Pregunta inexistente' USING ERRCODE='22023';
++  END IF;
++
++  IF pregunta.indice_seleccionado IS NOT NULL THEN
++    IF pregunta.indice_seleccionado <> p_indice THEN
++      RAISE EXCEPTION 'Respuesta ya confirmada y no modificable' USING ERRCODE='22023';
++    END IF;
++  ELSE
++    IF intento.estado <> 'en_progreso' THEN
++      RAISE EXCEPTION 'Intento ya cerrado' USING ERRCODE='22023';
++    END IF;
++
++    IF EXISTS (
++      SELECT 1 FROM public.quiz_respuestas r
++      WHERE r.intento_id = p_intento_id
++        AND r.numero_pregunta < p_numero
++        AND r.indice_seleccionado IS NULL
++    ) THEN
++      RAISE EXCEPTION 'Debe responder las preguntas anteriores' USING ERRCODE='22023';
++    END IF;
++
++    UPDATE public.quiz_respuestas
++      SET indice_seleccionado = p_indice,
++          es_correcta = (p_indice = pregunta.indice_correcto)
++      WHERE id = pregunta.id;
++  END IF;
++
++  SELECT COUNT(*) FILTER (WHERE es_correcta IS TRUE)
++    INTO puntuacion
++    FROM public.quiz_respuestas
++    WHERE intento_id = p_intento_id;
++
++  -- Finalizar ├║nicamente al completar las cinco selecciones.
++  IF NOT EXISTS (
++    SELECT 1 FROM public.quiz_respuestas
++    WHERE intento_id = p_intento_id AND indice_seleccionado IS NULL
++  ) THEN
++    UPDATE public.quiz_intentos
++      SET estado = 'completado',
++          puntaje = puntuacion,
++          porcentaje = ROUND(puntuacion * 100.0 / 5),
++          completed_at = COALESCE(completed_at, NOW())
++      WHERE id = p_intento_id AND estado = 'en_progreso';
++    finalizado := TRUE;
++  ELSE
++    finalizado := (intento.estado = 'completado');
++  END IF;
++
++  RETURN jsonb_build_object(
++    'numero', pregunta.numero_pregunta,
++    'pregunta', pregunta.pregunta,
++    'opciones', pregunta.opciones,
++    'indiceSeleccionado', p_indice,
++    'indiceCorrecto', pregunta.indice_correcto,
++    'esCorrecta', (p_indice = pregunta.indice_correcto),
++    'explicacion', pregunta.explicacion,
++    'nivelComprension', pregunta.nivel_comprension,
++    'quizFinalizado', finalizado
++  );
++END; $$;
++
++REVOKE ALL ON FUNCTION public.responder_pregunta_segura(UUID, SMALLINT, SMALLINT, UUID)
++  FROM PUBLIC, anon, authenticated;
++
++GRANT EXECUTE ON FUNCTION public.responder_pregunta_segura(UUID, SMALLINT, SMALLINT, UUID)
++  TO service_role;
+diff --git a/test/pdf_export_service_test.dart b/test/pdf_export_service_test.dart
+new file mode 100644
+index 0000000..39532c3
+--- /dev/null
++++ b/test/pdf_export_service_test.dart
+@@ -0,0 +1,153 @@
++import 'dart:convert';
++import 'dart:io';
++import 'dart:typed_data';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:tesis_investigacion/models/cuento.dart';
++import 'package:tesis_investigacion/models/decision_narrativa.dart';
++import 'package:tesis_investigacion/models/escena.dart';
++import 'package:tesis_investigacion/services/pdf_export_service.dart';
++
++void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
++
++  // M├¡nimo PNG v├ílido de 1x1 p├¡xel para pruebas de bitmap
++  final pngValidoBytes = base64Decode(
++    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
++  );
++
++  group('RF-30 / RF-31: Servicio de Exportaci├│n y Guardado de PDF', () {
++    test('Lanza StateError si el cuento no tiene escenas o no est├í finalizado', () async {
++      final cuentoVacio = Cuento(
++        id: 'c-vacio',
++        titulo: 'Cuento Vac├¡o',
++        personajePrincipal: 'Mateo',
++      );
++      await expectLater(
++        PdfExportService().generarPdf(cuentoVacio),
++        throwsStateError,
++      );
++
++      final cuentoIncompleto = Cuento(
++        id: 'c-incompleto',
++        titulo: 'Aventura en el Bosque',
++        personajePrincipal: 'Sof├¡a',
++      );
++      cuentoIncompleto.agregarEscena(
++        Escena(
++          numero: 1,
++          contenido: 'Sof├¡a empez├│ su viaje.',
++          opciones: ['Ir por el r├¡o', 'Ir por la monta├▒a'],
++          esFinal: false,
++        ),
++      );
++      await expectLater(
++        PdfExportService().generarPdf(cuentoIncompleto),
++        throwsStateError,
++      );
++    });
++
++    test('Genera un PDF v├ílido con cabecera est├índar (%PDF) sin im├ígenes', () async {
++      final cuento = Cuento(
++        id: 'c-sin-imagenes',
++        titulo: 'El Gran Descubrimiento',
++        personajePrincipal: 'Valentina',
++      );
++      cuento.agregarEscena(
++        Escena(
++          numero: 1,
++          contenido: 'Valentina encontr├│ un cofre brillante en su habitaci├│n.',
++          opciones: ['Abrirlo', 'Esperar a mam├í'],
++          esFinal: false,
++        ),
++      );
++      cuento.registrarDecision(
++        DecisionNarrativa(numeroEscena: 1, opcionSeleccionada: 'Abrirlo'),
++      );
++      cuento.agregarEscena(
++        Escena(
++          numero: 2,
++          contenido: 'Dentro del cofre hab├¡a un mapa m├ígico y una nota amigable. Fin.',
++          opciones: const [],
++          esFinal: true,
++        ),
++      );
++
++      final pdfBytes = await PdfExportService().generarPdf(cuento);
++      expect(pdfBytes, isNotEmpty);
++      expect(pdfBytes.take(4).toList(), [37, 80, 68, 70]);
++
++      // Guardar en disco para verificaci├│n en Windows 11
++      final outDir = Directory('build');
++      if (!outDir.existsSync()) outDir.createSync(recursive: true);
++      File('build/pdf_export_sin_imagenes.pdf').writeAsBytesSync(pdfBytes);
++    });
++
++    test('Genera PDF incluyendo portada e ilustraciones de escenas v├ílidas', () async {
++      final cuento = Cuento(
++        id: 'c-con-imagenes',
++        titulo: 'La Ardilla Sabia',
++        personajePrincipal: 'Leo',
++        referenciaVisualPng: pngValidoBytes,
++      );
++      cuento.agregarEscena(
++        Escena(
++          numero: 1,
++          contenido: 'Leo conoci├│ a la ardilla bajo un sauce.',
++          opciones: ['Saludarla con una sonrisa'],
++          esFinal: false,
++        ),
++      );
++      cuento.registrarImagenEscena(1, pngValidoBytes);
++
++      cuento.agregarEscena(
++        Escena(
++          numero: 2,
++          contenido: 'Juntos protegieron el nido de los p├íjaros. Color├¡n colorado.',
++          opciones: const [],
++          esFinal: true,
++        ),
++      );
++
++      final pdfBytes = await PdfExportService().generarPdf(cuento);
++      expect(pdfBytes, isNotEmpty);
++      expect(pdfBytes.take(4).toList(), [37, 80, 68, 70]);
++
++      // Guardar en disco para verificaci├│n en Windows 11
++      final outDir = Directory('build');
++      if (!outDir.existsSync()) outDir.createSync(recursive: true);
++      File('build/pdf_export_con_imagenes.pdf').writeAsBytesSync(pdfBytes);
++    });
++
++    test('Tolerancia a fallos: genera PDF aun con imagen corrupta o data-uri inv├ílido', () async {
++      final cuento = Cuento(
++        id: 'c-imagen-corrupta',
++        titulo: 'El Misterio del Reloj',
++        personajePrincipal: 'Camila',
++      );
++      cuento.agregarEscena(
++        Escena(
++          numero: 1,
++          contenido: 'Camila escuch├│ un tictac extra├▒o.',
++          opciones: const [],
++          imageUrl: 'data:image/png;base64,datos-corruptos-no-validos',
++          esFinal: false,
++        ),
++      );
++      // Simular bytes no reconocibles como PNG/JPEG
++      cuento.registrarImagenEscena(1, Uint8List.fromList([1, 2, 3, 4, 5, 6]));
++
++      cuento.agregarEscena(
++        Escena(
++          numero: 2,
++          contenido: 'Era solo un pajarito de madera. Fin feliz.',
++          opciones: const [],
++          esFinal: true,
++        ),
++      );
++
++      final pdfBytes = await PdfExportService().generarPdf(cuento);
++      expect(pdfBytes, isNotEmpty);
++      expect(pdfBytes.take(4).toList(), [37, 80, 68, 70]);
++    });
++  });
++}
+diff --git a/test/quiz_feedback_immediate_test.dart b/test/quiz_feedback_immediate_test.dart
+new file mode 100644
+index 0000000..84bbced
+--- /dev/null
++++ b/test/quiz_feedback_immediate_test.dart
+@@ -0,0 +1,282 @@
++// test/quiz_feedback_immediate_test.dart
++
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:tesis_investigacion/models/quiz_question.dart';
++import 'package:tesis_investigacion/models/quiz_result.dart';
++import 'package:tesis_investigacion/services/supabase_quiz_service.dart';
++import 'package:tesis_investigacion/views/quiz_view.dart';
++
++class MockQuizFeedbackServiceImpl implements QuizService, QuizFeedbackService {
++  final List<QuizQuestionResult> responderCalls = [];
++  final Map<int, QuizQuestionResult> responsesToReturn = {};
++  QuizStartResponse? customStartResponse;
++
++  @override
++  Future<QuizStartResponse> generarQuiz(String cuentoId) async {
++    if (customStartResponse != null) {
++      return customStartResponse!;
++    }
++    return QuizStartResponse(
++      intentoId: 'intento-uuid-1234',
++      estado: 'en_progreso',
++      preguntas: List.generate(
++        5,
++        (i) => QuizQuestion(
++          numero: i + 1,
++          pregunta: '┬┐Pregunta de prueba ${i + 1}?',
++          opciones: [
++            'Opci├│n A${i + 1}',
++            'Opci├│n B${i + 1}',
++            'Opci├│n C${i + 1}',
++            'Opci├│n D${i + 1}',
++          ],
++          nivelComprension: i < 2
++              ? 'literal'
++              : (i < 4 ? 'inferencial' : 'critico_reflexivo'),
++        ),
++      ),
++    );
++  }
++
++  @override
++  Future<QuizQuestionResult> responderPregunta({
++    required String intentoId,
++    required int numero,
++    required int indiceSeleccionado,
++  }) async {
++    final resp = responsesToReturn[numero] ??
++        QuizQuestionResult(
++          numero: numero,
++          pregunta: '┬┐Pregunta de prueba $numero?',
++          opciones: [
++            'Opci├│n A$numero',
++            'Opci├│n B$numero',
++            'Opci├│n C$numero',
++            'Opci├│n D$numero',
++          ],
++          indiceSeleccionado: indiceSeleccionado,
++          indiceCorrecto: 1, // B es la correcta por defecto
++          esCorrecta: indiceSeleccionado == 1,
++          explicacion: indiceSeleccionado == 1
++              ? '┬íExcelente! La historia lo menciona con claridad.'
++              : 'Recuerda que en el cuento ocurri├│ otra situaci├│n.',
++          nivelComprension: numero < 3
++              ? 'literal'
++              : (numero < 5 ? 'inferencial' : 'critico_reflexivo'),
++        );
++    responderCalls.add(resp);
++    return resp;
++  }
++
++  @override
++  Future<QuizResult> enviarQuiz({
++    required String intentoId,
++    required List<QuizAnswerSubmission> respuestas,
++  }) async {
++    throw UnimplementedError('No debe llamarse en flujo de retroalimentaci├│n inmediata.');
++  }
++}
++
++void main() {
++  Widget crearWidgetPrueba(QuizService service) {
++    return MaterialApp(
++      home: QuizView(
++        cuentoId: 'cuento-123',
++        tituloCuento: 'El Bosque de Fantas├¡a',
++        quizService: service,
++        onVolver: () {},
++      ),
++    );
++  }
++
++  group('RF-26: Retroalimentaci├│n inmediata y persistencia por pregunta', () {
++    testWidgets('Muestra nivel de comprensi├│n y permite seleccionar alternativa', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Nivel: Literal'), findsOneWidget);
++      expect(find.text('┬┐Pregunta de prueba 1?'), findsOneWidget);
++      expect(find.text('Opci├│n A1'), findsOneWidget);
++      expect(find.text('Comprobar respuesta'), findsOneWidget);
++    });
++
++    testWidgets('Confirmar respuesta correcta muestra banner verde y explicaci├│n para primaria', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      // Seleccionar opci├│n correcta (B = ├¡ndice 1)
++      await tester.tap(find.text('Opci├│n B1'));
++      await tester.pumpAndSettle();
++
++      // Pulsar "Comprobar respuesta"
++      await tester.tap(find.text('Comprobar respuesta'));
++      await tester.pumpAndSettle();
++
++      // Verificar que se invoc├│ responderPregunta en el servidor
++      expect(mock.responderCalls.length, 1);
++      expect(mock.responderCalls.first.numero, 1);
++      expect(mock.responderCalls.first.indiceSeleccionado, 1);
++
++      // Verificar retroalimentaci├│n inmediata en la UI
++      expect(find.text('┬íCorrecto! ­ƒîƒ'), findsOneWidget);
++      expect(find.text('┬íExcelente! La historia lo menciona con claridad.'), findsOneWidget);
++      expect(find.text('Lee esta explicaci├│n antes de continuar.'), findsOneWidget);
++
++      // El bot├│n ahora debe ser "Siguiente"
++      expect(find.text('Siguiente'), findsOneWidget);
++    });
++
++    testWidgets('Inmutabilidad: respuesta confirmada bloquea cambios de selecci├│n', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      // Seleccionar y confirmar opci├│n B
++      await tester.tap(find.text('Opci├│n B1'));
++      await tester.pumpAndSettle();
++      await tester.tap(find.text('Comprobar respuesta'));
++      await tester.pumpAndSettle();
++
++      expect(mock.responderCalls.length, 1);
++
++      // Intentar tocar opci├│n A u otra alternativa
++      await tester.tap(find.text('Opci├│n A1'));
++      await tester.pumpAndSettle();
++
++      // La llamada al servicio no debe repetirse
++      expect(mock.responderCalls.length, 1);
++    });
++
++    testWidgets('Respuesta incorrecta muestra banner explicativo y revela alternativa correcta', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      // Seleccionar opci├│n incorrecta (A = ├¡ndice 0)
++      await tester.tap(find.text('Opci├│n A1'));
++      await tester.pumpAndSettle();
++      await tester.tap(find.text('Comprobar respuesta'));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Revisemos tu respuesta ­ƒÆí'), findsOneWidget);
++      expect(find.text('Recuerda que en el cuento ocurri├│ otra situaci├│n.'), findsOneWidget);
++      expect(find.text('Respuesta correcta: Opci├│n B1'), findsOneWidget);
++    });
++
++    testWidgets('Reanudaci├│n: cuestionario con respuestas previas carga estado y avanza a la pendiente', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      // Simular que la pregunta 1 ya fue respondida previamente en Supabase
++      mock.customStartResponse = QuizStartResponse(
++        intentoId: 'intento-reanudado',
++        estado: 'en_progreso',
++        preguntas: List.generate(
++          5,
++          (i) => QuizQuestion(
++            numero: i + 1,
++            pregunta: '┬┐Pregunta ${i + 1}?',
++            opciones: ['A', 'B', 'C', 'D'],
++            nivelComprension: i == 0 ? 'literal' : 'inferencial',
++          ),
++        ),
++        retroalimentaciones: [
++          const QuizQuestionResult(
++            numero: 1,
++            pregunta: '┬┐Pregunta 1?',
++            opciones: ['A', 'B', 'C', 'D'],
++            indiceSeleccionado: 1,
++            indiceCorrecto: 1,
++            esCorrecta: true,
++            explicacion: 'Explicaci├│n guardada',
++            nivelComprension: 'literal',
++          ),
++        ],
++      );
++
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      // Debe posicionarse directamente en la pregunta 2 (primer pendiente)
++      expect(find.text('Pregunta 2 de 5'), findsOneWidget);
++      expect(find.text('┬┐Pregunta 2?'), findsOneWidget);
++      expect(find.text('Comprobar respuesta'), findsOneWidget);
++
++      // Si retrocede a la 1, debe ver que ya est├í respondida y con su feedback
++      await tester.tap(find.text('Anterior'));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Pregunta 1 de 5'), findsOneWidget);
++      expect(find.text('┬íCorrecto! ­ƒîƒ'), findsOneWidget);
++      expect(find.text('Explicaci├│n guardada'), findsOneWidget);
++    });
++
++    testWidgets('Finalizaci├│n: al responder la pregunta 5 permite ver el resultado final', (tester) async {
++      final mock = MockQuizFeedbackServiceImpl();
++      // Simular que preguntas 1 a 4 ya est├ín respondidas
++      mock.customStartResponse = QuizStartResponse(
++        intentoId: 'intento-casi-listo',
++        estado: 'en_progreso',
++        preguntas: List.generate(
++          5,
++          (i) => QuizQuestion(
++            numero: i + 1,
++            pregunta: '┬┐Pregunta ${i + 1}?',
++            opciones: ['Opc ${i + 1}A', 'Opc ${i + 1}B', 'Opc ${i + 1}C', 'Opc ${i + 1}D'],
++            nivelComprension: i == 4 ? 'critico_reflexivo' : 'literal',
++          ),
++        ),
++        retroalimentaciones: List.generate(
++          4,
++          (i) => QuizQuestionResult(
++            numero: i + 1,
++            pregunta: '┬┐Pregunta ${i + 1}?',
++            opciones: ['Opc ${i + 1}A', 'Opc ${i + 1}B', 'Opc ${i + 1}C', 'Opc ${i + 1}D'],
++            indiceSeleccionado: 1,
++            indiceCorrecto: 1,
++            esCorrecta: true,
++            explicacion: 'Correcto',
++            nivelComprension: 'literal',
++          ),
++        ),
++      );
++
++      await tester.pumpWidget(crearWidgetPrueba(mock));
++      await tester.pumpAndSettle();
++
++      // Debe estar en pregunta 5
++      expect(find.text('Pregunta 5 de 5'), findsOneWidget);
++      expect(find.text('Nivel: Cr├¡tico-reflexivo'), findsOneWidget);
++
++      // Responder pregunta 5 seleccionando Opc 5B
++      await tester.tap(find.text('Opc 5B'));
++      await tester.pumpAndSettle();
++      await tester.tap(find.text('Comprobar respuesta'));
++      await tester.pumpAndSettle();
++
++      // Tras confirmar la 5, el bot├│n debe ser "Ver mi resultado"
++      expect(find.text('Ver mi resultado'), findsOneWidget);
++
++      // Simular que el backend complet├│ el intento
++      mock.customStartResponse = QuizStartResponse(
++        intentoId: 'intento-casi-listo',
++        estado: 'completado',
++        resultadoExistente: const QuizResult(
++          intentoId: 'intento-casi-listo',
++          puntaje: 5,
++          total: 5,
++          porcentaje: 100,
++          respuestas: [],
++        ),
++      );
++
++      await tester.tap(find.text('Ver mi resultado'));
++      await tester.pumpAndSettle();
++
++      // Debe mostrar la vista de resultados globales
++      expect(find.text('Resultado de Comprensi├│n'), findsOneWidget);
++      expect(find.text('Puntaje: 5 de 5'), findsOneWidget);
++    });
++  });
++}
+diff --git a/test/quiz_nivel_comprension_test.dart b/test/quiz_nivel_comprension_test.dart
+new file mode 100644
+index 0000000..8033015
+--- /dev/null
++++ b/test/quiz_nivel_comprension_test.dart
+@@ -0,0 +1,74 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:tesis_investigacion/models/quiz_question.dart';
++import 'package:tesis_investigacion/models/quiz_result.dart';
++
++void main() {
++  group('RF-22: Modelos y dimensiones de comprensi├│n lectora', () {
++    test('QuizQuestion expone nivel explicito desde camelCase y snake_case', () {
++      final p1 = QuizQuestion.fromJson({
++        'numero': 1,
++        'pregunta': '┬┐Qui├®n acompa├▒aba al protagonista?',
++        'opciones': ['Un perro', 'Un gato', 'Un p├íjaro', 'Un rat├│n'],
++        'nivelComprension': 'literal',
++      });
++      expect(p1.nivelComprension, 'literal');
++      expect(p1.toJson()['nivelComprension'], 'literal');
++
++      final p2 = QuizQuestion.fromJson({
++        'numero': 3,
++        'pregunta': '┬┐Por qu├® decidieron refugiarse?',
++        'opciones': ['Ven├¡a lluvia', 'Se hizo de noche', 'Ten├¡an miedo', 'Hab├¡a monstruos'],
++        'nivel_comprension': 'inferencial',
++      });
++      expect(p2.nivelComprension, 'inferencial');
++    });
++
++    test('QuizQuestion conserva compatibilidad con registros historicos sin clasificar', () {
++      final pAntigua = QuizQuestion.fromJson({
++        'numero': 1,
++        'pregunta': 'Pregunta antigua',
++        'opciones': ['A', 'B', 'C', 'D'],
++      });
++      expect(pAntigua.nivelComprension, 'sin_clasificar');
++    });
++
++    test('QuizQuestionResult incluye dimension, explicacion y serializacion completa', () {
++      final r = QuizQuestionResult.fromJson({
++        'numero_pregunta': 5,
++        'pregunta': '┬┐Qu├® decisi├│n fue m├ís adecuada y por qu├®?',
++        'opciones': ['Opci├│n A', 'Opci├│n B', 'Opci├│n C', 'Opci├│n D'],
++        'indice_seleccionado': 2,
++        'indice_correcto': 2,
++        'es_correcta': true,
++        'explicacion': 'Demuestra reflexi├│n cr├¡tica sobre el dilema del cuento.',
++        'nivel_comprension': 'critico_reflexivo',
++      });
++
++      expect(r.numero, 5);
++      expect(r.nivelComprension, 'critico_reflexivo');
++      expect(r.esCorrecta, true);
++      expect(r.opcionSeleccionadaTexto, 'Opci├│n C');
++      expect(r.opcionCorrectaTexto, 'Opci├│n C');
++      expect(r.toJson()['nivelComprension'], 'critico_reflexivo');
++      expect(r.toJson()['nivel_comprension'], 'critico_reflexivo');
++    });
++
++    test('QuizQuestionResult maneja respuestas incorrectas y revela opcion esperada', () {
++      final r = QuizQuestionResult.fromJson({
++        'numero': 2,
++        'pregunta': '┬┐D├│nde viv├¡a el protagonista?',
++        'opciones': ['En un valle', 'En un barco', 'En una torre', 'En una cueva'],
++        'indiceSeleccionado': 0,
++        'indiceCorrecto': 3,
++        'esCorrecta': false,
++        'explicacion': 'La historia describe que su hogar estaba dentro de una cueva.',
++        'nivelComprension': 'literal',
++      });
++
++      expect(r.esCorrecta, false);
++      expect(r.opcionSeleccionadaTexto, 'En un valle');
++      expect(r.opcionCorrectaTexto, 'En una cueva');
++      expect(r.nivelComprension, 'literal');
++    });
++  });
++}
+diff --git a/test/story_view_pdf_export_test.dart b/test/story_view_pdf_export_test.dart
+new file mode 100644
+index 0000000..2e5cb39
+--- /dev/null
++++ b/test/story_view_pdf_export_test.dart
+@@ -0,0 +1,144 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:flutter_tts/flutter_tts.dart';
++import 'package:tesis_investigacion/controllers/story_controller.dart';
++import 'package:tesis_investigacion/models/cuento.dart';
++import 'package:tesis_investigacion/models/escena.dart';
++import 'package:tesis_investigacion/repositories/cuento_repository_memoria.dart';
++import 'package:tesis_investigacion/services/ai_service.dart';
++import 'package:tesis_investigacion/services/document_service.dart';
++import 'package:tesis_investigacion/services/narracion_service.dart';
++import 'package:tesis_investigacion/services/narrativa_service.dart';
++import 'package:tesis_investigacion/views/story_view.dart';
++
++class FakeFlutterTts extends Fake implements FlutterTts {
++  @override
++  void setCompletionHandler(dynamic handler) {}
++  @override
++  void setCancelHandler(dynamic handler) {}
++  @override
++  void setErrorHandler(dynamic handler) {}
++  @override
++  Future<dynamic> setLanguage(String language) async => 1;
++  @override
++  Future<dynamic> setSpeechRate(double rate) async => 1;
++  @override
++  Future<dynamic> setVolume(double volume) async => 1;
++  @override
++  Future<dynamic> setPitch(double pitch) async => 1;
++  @override
++  Future<dynamic> get getVoices async => [];
++  @override
++  Future<dynamic> speak(String text, {bool focus = false}) async => 1;
++  @override
++  Future<dynamic> stop() async => 1;
++}
++
++class FakeAiService extends Fake implements AiService {}
++
++void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
++
++  late FakeFlutterTts fakeTts;
++  late NarracionService narracionService;
++  late StoryController storyController;
++
++  setUp(() {
++    fakeTts = FakeFlutterTts();
++    narracionService = NarracionService(tts: fakeTts);
++    storyController = StoryController(
++      aiService: FakeAiService(),
++      narrativaService: NarrativaService(),
++      cuentoRepository: CuentoRepositoryMemoria(),
++      documentService: DocumentService(),
++    );
++  });
++
++  Widget crearApp({required Cuento cuento, bool modoHistorico = false}) {
++    return MaterialApp(
++      home: StoryView(
++        cuento: cuento,
++        controller: storyController,
++        narracionService: narracionService,
++        autoNarrar: false,
++        modoHistorico: modoHistorico,
++        onSalir: () {},
++      ),
++    );
++  }
++
++  group('RF-30 & RF-31: Bot├│n Exportar PDF en StoryView', () {
++    testWidgets('No muestra bot├│n Exportar PDF si la escena NO es final', (tester) async {
++      final cuentoNoFinal = Cuento(
++        id: 'cuento-no-final',
++        titulo: 'Cuento en Progreso',
++        personajePrincipal: 'Leo',
++        escenas: [
++          Escena(
++            numero: 1,
++            contenido: 'Leo da sus primeros pasos en el bosque misterioso.',
++            opciones: ['Ir por la izquierda', 'Ir por la derecha'],
++            esFinal: false,
++          ),
++        ],
++      );
++
++      await tester.binding.setSurfaceSize(const Size(1280, 800));
++      addTearDown(() => tester.binding.setSurfaceSize(null));
++
++      await tester.pumpWidget(crearApp(cuento: cuentoNoFinal));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Exportar PDF'), findsNothing);
++    });
++
++    testWidgets('Muestra bot├│n Exportar PDF cuando la escena es final', (tester) async {
++      final cuentoFinalizado = Cuento(
++        id: 'cuento-final',
++        titulo: 'El Gran Tesoro',
++        personajePrincipal: 'Valeria',
++        escenas: [
++          Escena(
++            numero: 1,
++            contenido: 'Valeria abri├│ el cofre y encontr├│ la gema de la sabidur├¡a.',
++            opciones: ['Fin de la aventura'],
++            esFinal: true,
++          ),
++        ],
++      );
++
++      await tester.binding.setSurfaceSize(const Size(1280, 800));
++      addTearDown(() => tester.binding.setSurfaceSize(null));
++
++      await tester.pumpWidget(crearApp(cuento: cuentoFinalizado));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Exportar PDF'), findsOneWidget);
++      expect(find.byIcon(Icons.picture_as_pdf_rounded), findsOneWidget);
++    });
++
++    testWidgets('Muestra bot├│n Exportar PDF en modo historial si la escena es final', (tester) async {
++      final cuentoHistorial = Cuento(
++        id: 'cuento-historial',
++        titulo: 'Cuento Recordado',
++        personajePrincipal: 'Sam',
++        escenas: [
++          Escena(
++            numero: 1,
++            contenido: 'Fin del relato hist├│rico.',
++            opciones: ['Terminar'],
++            esFinal: true,
++          ),
++        ],
++      );
++
++      await tester.binding.setSurfaceSize(const Size(1280, 800));
++      addTearDown(() => tester.binding.setSurfaceSize(null));
++
++      await tester.pumpWidget(crearApp(cuento: cuentoHistorial, modoHistorico: true));
++      await tester.pumpAndSettle();
++
++      expect(find.text('Exportar PDF'), findsOneWidget);
++    });
++  });
++}

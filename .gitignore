@@ -15,10 +15,16 @@ build/
 .env.*
 !.env.example
 
-# Archivos temporales
+# Archivos temporales y datos sensibles de pruebas
 *.log
 *.tmp
 *.local.json
+scripts/datos_pruebas_manuales_*.json
+scripts/datos_pruebas_manuales_592.json
+scripts/*.local.json
+credenciales_*.json
+*.token
+*.jwt
 config_staging.json
 config_prod.json
 backups/

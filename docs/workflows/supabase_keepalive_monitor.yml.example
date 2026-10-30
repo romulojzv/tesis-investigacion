@@ -1,0 +1,142 @@
+# ==============================================================================
+# PLANTILLA DE MONITOREO Y PREVENCIÓN DE PAUSA — SUPABASE (GITHUB ACTIONS)
+# ==============================================================================
+# ESTADO: PLANTILLA DE EJEMPLO — NO ACTIVADA NI PUBLICADA EN EL REPOSITORIO.
+#
+# Para activarla formalmente cuando lo autorices:
+# 1. Copiar este archivo a: .github/workflows/supabase_keepalive_monitor.yml
+# 2. Asegurar que la rama predeterminada en GitHub ('main') contenga este archivo
+#    (las ejecuciones programadas 'schedule' de GitHub Actions solo corren en la rama predeterminada).
+# 3. Configurar los Secretos en GitHub > Settings > Secrets and variables > Actions:
+#      - PROD_SUPABASE_URL y PROD_SUPABASE_ANON_KEY (Producción: wdehfetiazgukfgnngfi)
+#      - STAGING_SUPABASE_URL y STAGING_SUPABASE_ANON_KEY (Staging: acxsyswrzdtstgqztojj)
+#      (o bien los genéricos SUPABASE_URL y SUPABASE_ANON_KEY si solo se monitorea uno)
+# ==============================================================================
+
+name: Supabase Keepalive & Health Monitor
+
+on:
+  schedule:
+    # Ejecución programada: 2 veces al día a las 06:00 y 18:00 UTC (01:00 y 13:00 hora de Perú)
+    # IMPORTANTE: Los eventos 'schedule' solo se disparan desde la rama predeterminada del repositorio ('main').
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: # Permite disparo manual de prueba desde cualquier rama en GitHub Actions
+
+jobs:
+  healthcheck:
+    name: Supabase Health Check (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [produccion, staging]
+
+    steps:
+      - name: Registrar inicio de supervisión
+        run: |
+          echo "========================================================================"
+          echo "Iniciando comprobación periódica para el entorno: ${{ matrix.environment }}"
+          echo "Fecha/Hora de ejecución UTC: $(date -u)"
+          echo "========================================================================"
+
+      - name: Ejecutar verificación de PostgreSQL con HTTP 200 estricto
+        env:
+          ENV_NAME: ${{ matrix.environment }}
+          PROD_URL: ${{ secrets.PROD_SUPABASE_URL || secrets.SUPABASE_URL }}
+          PROD_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          STAGING_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          # 1. Seleccionar variables de conexión según la matriz
+          if [ "$ENV_NAME" = "produccion" ]; then
+            TARGET_URL="$PROD_URL"
+            TARGET_KEY="$PROD_KEY"
+          else
+            TARGET_URL="$STAGING_URL"
+            TARGET_KEY="$STAGING_KEY"
+          fi
+
+          if [ -z "$TARGET_URL" ] || [ -z "$TARGET_KEY" ]; then
+            echo "::warning::Secretos no configurados para el entorno '$ENV_NAME'. Se omite este job."
+            exit 0
+          fi
+
+          # Máscara de host para registro seguro (no imprimir claves ni tokens)
+          TARGET_HOST=$(echo "$TARGET_URL" | sed -E 's|^https?://||; s|/.*$||')
+          echo "Host destino supervisado: $TARGET_HOST"
+
+          # --------------------------------------------------------------------
+          # FASE 1: Comprobación de API Gateway y Subsistema Auth (GoTrue)
+          # --------------------------------------------------------------------
+          START_TIME=$(date +%s%3N)
+          HTTP_AUTH=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $TARGET_KEY" \
+            -H "Authorization: Bearer $TARGET_KEY" \
+            --max-time 10 \
+            "$TARGET_URL/auth/v1/settings")
+          END_TIME=$(date +%s%3N)
+          AUTH_LATENCY=$((END_TIME - START_TIME))
+
+          echo "Paso 1 (Auth GoTrue): HTTP $HTTP_AUTH (${AUTH_LATENCY}ms)"
+
+          if [ "$HTTP_AUTH" -eq 200 ]; then
+            echo "  ✅ API Gateway y Auth GoTrue: OPERACIONALES."
+          elif [ "$HTTP_AUTH" -eq 503 ]; then
+            echo "::error::🚨 ALERTA CRÍTICA: El proyecto $TARGET_HOST se encuentra PAUSADO por inactividad (HTTP 503)."
+            exit 1
+          elif [ "$HTTP_AUTH" -eq 429 ]; then
+            echo "::warning::⚠️ Límite de tasa de peticiones alcanzado (HTTP 429 Rate Limit)."
+          elif [ "$HTTP_AUTH" -eq 401 ] || [ "$HTTP_AUTH" -eq 403 ]; then
+            echo "::error::❌ ERROR DE AUTORIZACIÓN en Auth (HTTP $HTTP_AUTH). Revise la clave pública configurada."
+            exit 1
+          else
+            echo "::warning::Respuesta inesperada en Auth: HTTP $HTTP_AUTH"
+          fi
+
+          # --------------------------------------------------------------------
+          # FASE 2: Consulta Real y Autorizada a PostgreSQL (HTTP 200 Estricto)
+          # --------------------------------------------------------------------
+          # Consulta la tabla pública inocua 'public.healthcheck' o el RPC 'health_check'
+          # CRITERIO ESTRICTO: Solo HTTP 200 con JSON válido se considera ÉXITO.
+          # Errores 401, 403 o SQLSTATE 42501 se clasifican como FALLOS DE AUTORIZACIÓN.
+          # --------------------------------------------------------------------
+          START_TIME=$(date +%s%3N)
+          RESP_FILE=$(mktemp)
+          HTTP_DB=$(curl -s -w "%{http_code}" -o "$RESP_FILE" \
+            -H "apikey: $TARGET_KEY" \
+            -H "Authorization: Bearer $TARGET_KEY" \
+            --max-time 10 \
+            "$TARGET_URL/rest/v1/healthcheck?select=status")
+          END_TIME=$(date +%s%3N)
+          DB_LATENCY=$((END_TIME - START_TIME))
+
+          echo "Paso 2 (PostgreSQL PostgREST): HTTP $HTTP_DB (${DB_LATENCY}ms)"
+
+          # Evaluación rigurosa de la respuesta
+          if [ "$HTTP_DB" -eq 200 ] && grep -q '"ok"' "$RESP_FILE"; then
+            echo "  ✅ Motor PostgreSQL: ACTIVO Y VERIFICADO. Consulta SELECT retornó HTTP 200 OK."
+            rm -f "$RESP_FILE"
+          elif [ "$HTTP_DB" -eq 401 ] || [ "$HTTP_DB" -eq 403 ]; then
+            echo "::error::❌ ERROR DE AUTORIZACIÓN en PostgreSQL (HTTP $HTTP_DB). El permiso SELECT no está habilitado o la clave es incorrecta."
+            rm -f "$RESP_FILE"
+            exit 1
+          elif [ "$HTTP_DB" -eq 404 ]; then
+            echo "::warning::⚠️ Endpoint /rest/v1/healthcheck no encontrado (HTTP 404). Asegúrese de haber desplegado la migración 20261030140000_healthcheck_monitor.sql."
+            rm -f "$RESP_FILE"
+            exit 1
+          elif [ "$HTTP_DB" -eq 429 ]; then
+            echo "::warning::⚠️ Límite de tasa de solicitudes alcanzado en PostgreSQL (HTTP 429)."
+            rm -f "$RESP_FILE"
+            exit 1
+          elif [ "$HTTP_DB" -eq 503 ]; then
+            echo "::error::🚨 ALERTA CRÍTICA: La base de datos PostgreSQL está PAUSADA por inactividad (HTTP 503)."
+            rm -f "$RESP_FILE"
+            exit 1
+          else
+            echo "::error::Fallo en la comunicación con PostgreSQL: HTTP $HTTP_DB"
+            rm -f "$RESP_FILE"
+            exit 1
+          fi
+
+          echo "Comprobación finalizada con éxito para $TARGET_HOST."

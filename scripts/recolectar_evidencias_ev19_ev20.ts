@@ -2,12 +2,33 @@
 /// <reference lib="dom" />
 import { createClient } from 'npm:@supabase/supabase-js';
 
-const url = Deno.env.get('SUPABASE_URL') || 'https://acxsyswrzdtstgqztojj.supabase.co';
+const url = Deno.env.get('SUPABASE_URL') || '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const pinA = Deno.env.get('STAGING_STUDENT_A_PIN') || Deno.env.get('STAGING_TEST_PIN') || '';
+const pinB = Deno.env.get('STAGING_STUDENT_B_PIN') || Deno.env.get('STAGING_TEST_PIN') || '';
 
+if (!url) {
+  console.error('Error de configuración: Se requiere SUPABASE_URL.');
+  Deno.exit(1);
+}
 if (!anonKey || !serviceKey) {
-  console.error('Error: se requieren SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY');
+  console.error('Error de configuración: Se requieren SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY.');
+  Deno.exit(1);
+}
+if (!pinA || !pinB) {
+  console.error('Error de configuración: Se requieren variables de PIN para cuentas sintéticas (STAGING_STUDENT_A_PIN, STAGING_STUDENT_B_PIN o STAGING_TEST_PIN).');
+  Deno.exit(1);
+}
+
+// Salvaguarda: Aceptar exclusivamente el hostname exacto de Staging con HTTPS
+try {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'acxsyswrzdtstgqztojj.supabase.co' || (parsed.port && parsed.port !== '443') || parsed.username || parsed.password) {
+    throw new Error(`Destino no autorizado: '${parsed.origin}'. Se requiere exclusivamente 'https://acxsyswrzdtstgqztojj.supabase.co'.`);
+  }
+} catch (err: any) {
+  console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
   Deno.exit(1);
 }
 
@@ -32,6 +53,8 @@ async function obtenerTokenEstudiante(codigo: string, pin: string, nombre: strin
     });
     if (error) throw error;
     user = nuevo.user;
+  } else {
+    await admin.auth.admin.updateUserById(user.id, { password: pin });
   }
 
   await admin.from('profiles').upsert({
@@ -59,15 +82,14 @@ async function obtenerTokenEstudiante(codigo: string, pin: string, nombre: strin
 async function main() {
   console.log('================================================================');
   console.log(' RECOLECCIÓN DE EVIDENCIAS TÉCNICAS: EV-UI-19 Y EV-UI-20');
-  console.log(' Entorno: Supabase Staging (acxsyswrzdtstgqztojj)');
-  console.log(' Target:', url);
+  console.log(' Target:', url.replace(/\/\/([^:]+):?.*@/, '//'));
   console.log(' Fecha/Hora:', new Date().toISOString());
   console.log('================================================================\n');
 
   // 1. Obtener dos estudiantes ficticios A y B
   console.log('1. Autenticando Estudiante A y Estudiante B...');
-  const estudianteA = await obtenerTokenEstudiante('EST_EV_A', '123456', 'Estudiante A Evidencia');
-  const estudianteB = await obtenerTokenEstudiante('EST_EV_B', '123456', 'Estudiante B Evidencia');
+  const estudianteA = await obtenerTokenEstudiante('EST_EV_A', pinA, 'Estudiante A Evidencia');
+  const estudianteB = await obtenerTokenEstudiante('EST_EV_B', pinB, 'Estudiante B Evidencia');
 
   console.log(`- Estudiante A ID: ${estudianteA.id} (${estudianteA.codigo})`);
   console.log(`- Estudiante B ID: ${estudianteB.id} (${estudianteB.codigo})`);
@@ -198,7 +220,7 @@ async function main() {
   const evidenciaEv19 = {
     codigo_evidencia: 'EV-UI-19',
     descripcion: 'Rechazo de intento de respuesta cruzada entre estudiantes (Control de Acceso)',
-    entorno: 'Supabase Staging (acxsyswrzdtstgqztojj)',
+    entorno: 'Supabase Staging',
     fecha_utc: fechaEv19,
     endpoint: `${url}/functions/v1/responder-pregunta`,
     metodo: 'POST',
@@ -285,7 +307,7 @@ async function main() {
   const evidenciaEv20 = {
     codigo_evidencia: 'EV-UI-20',
     descripcion: 'Inmutabilidad de respuesta confirmada ante intento de modificación posterior',
-    entorno: 'Supabase Staging (acxsyswrzdtstgqztojj)',
+    entorno: 'Supabase Staging',
     fecha_utc: fechaEv20,
     endpoint: `${url}/functions/v1/responder-pregunta`,
     metodo: 'POST',

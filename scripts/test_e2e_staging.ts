@@ -25,12 +25,28 @@ export async function ejecutarPruebasE2E(config: {
 
   // 1. Crear / Autenticar usuarios sintéticos de prueba
   console.log('--- 1. Preparando identidades sintéticas de prueba ---');
-  const emailDocente = 'docente.test@example.com';
-  const emailEstudiante1 = 'estudiante1.test@example.com';
-  const emailEstudiante2 = 'estudiante2.test@example.com';
-  const passwordComun = 'PruebaStaging2026!';
+  const emailDocente = Deno.env.get('STAGING_DOCENTE_EMAIL') || 'docente.test@example.com';
+  const emailEstudiante1 = Deno.env.get('STAGING_ESTUDIANTE1_EMAIL') || 'estudiante1.test@example.com';
+  const emailEstudiante2 = Deno.env.get('STAGING_ESTUDIANTE2_EMAIL') || 'estudiante2.test@example.com';
 
-  async function obtenerOCrearUsuario(email: string, nombre: string, rol: 'docente' | 'estudiante') {
+  const defaultStagingPass = Deno.env.get('STAGING_TEST_PASSWORD');
+  const passwordDocente = Deno.env.get('STAGING_DOCENTE_PASSWORD') || defaultStagingPass;
+  const passwordEstudiante1 = Deno.env.get('STAGING_ESTUDIANTE1_PASSWORD') || defaultStagingPass;
+  const passwordEstudiante2 = Deno.env.get('STAGING_ESTUDIANTE2_PASSWORD') || defaultStagingPass;
+
+  if (!passwordDocente || !passwordEstudiante1 || !passwordEstudiante2) {
+    console.error('❌ ERROR DE SEGURIDAD (Obs 18-19):');
+    console.error('   Falta configurar la variable STAGING_TEST_PASSWORD en el entorno.');
+    console.error('   No se permiten contraseñas fijas ni valores predeterminados inseguros en el código.');
+    throw new Error('Variables de entorno de contraseñas de Staging no configuradas.');
+  }
+
+  async function obtenerOCrearUsuario(
+    email: string,
+    nombre: string,
+    rol: 'docente' | 'estudiante',
+    passwordUsuario: string,
+  ) {
     // Buscar si ya existe
     const { data: users } = await adminClient.auth.admin.listUsers();
     let user = users?.users?.find(u => u.email === email);
@@ -38,7 +54,7 @@ export async function ejecutarPruebasE2E(config: {
     if (!user) {
       const { data: nuevo, error } = await adminClient.auth.admin.createUser({
         email,
-        password: passwordComun,
+        password: passwordUsuario,
         email_confirm: true,
         user_metadata: { nombre, rol },
       });
@@ -56,7 +72,7 @@ export async function ejecutarPruebasE2E(config: {
     // Iniciar sesión para obtener token JWT de cliente
     const { data: sessionData, error: loginError } = await anonClient.auth.signInWithPassword({
       email,
-      password: passwordComun,
+      password: passwordUsuario,
     });
     if (loginError) throw new Error(`Error autenticando ${email}: ${loginError.message}`);
 
@@ -72,9 +88,9 @@ export async function ejecutarPruebasE2E(config: {
     };
   }
 
-  const docente = await obtenerOCrearUsuario(emailDocente, 'Profesor Staging', 'docente');
-  const estudiante1 = await obtenerOCrearUsuario(emailEstudiante1, 'Estudiante Staging Uno', 'estudiante');
-  const estudiante2 = await obtenerOCrearUsuario(emailEstudiante2, 'Estudiante Staging Dos', 'estudiante');
+  const docente = await obtenerOCrearUsuario(emailDocente, 'Profesor Staging', 'docente', passwordDocente);
+  const estudiante1 = await obtenerOCrearUsuario(emailEstudiante1, 'Estudiante Staging Uno', 'estudiante', passwordEstudiante1);
+  const estudiante2 = await obtenerOCrearUsuario(emailEstudiante2, 'Estudiante Staging Dos', 'estudiante', passwordEstudiante2);
 
   console.log(`✅ Docente ID: ${docente.id}`);
   console.log(`✅ Estudiante 1 ID: ${estudiante1.id}`);
@@ -491,12 +507,23 @@ export async function ejecutarPruebasE2E(config: {
 }
 
 if (import.meta.main) {
-  const url = Deno.env.get('SUPABASE_URL') || 'https://acxsyswrzdtstgqztojj.supabase.co';
+  const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
-  if (!anonKey || !serviceKey) {
-    console.error('Error: configure SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !anonKey || !serviceKey) {
+    console.error('❌ ERROR: Se requieren las variables SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY.');
+    Deno.exit(1);
+  }
+
+  // Salvaguarda: Aceptar exclusivamente el hostname exacto de Staging con HTTPS
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'acxsyswrzdtstgqztojj.supabase.co' || (parsed.port && parsed.port !== '443') || parsed.username || parsed.password) {
+      throw new Error(`Destino no autorizado: '${parsed.origin}'. Se requiere exclusivamente 'https://acxsyswrzdtstgqztojj.supabase.co'.`);
+    }
+  } catch (err: any) {
+    console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
     Deno.exit(1);
   }
 

@@ -20,6 +20,12 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
+// Salvaguarda: Rechazar ejecución contra entornos de producción
+if (SUPABASE_URL.toLowerCase().includes('production') || process.env.ENVIRONMENT === 'production') {
+  console.error('⛔ SEGURIDAD: Ejecución abortada. Este script no está autorizado para ejecutarse contra entornos de producción.');
+  process.exit(1);
+}
+
 // Cargar credenciales del piloto local
 const credsPath = path.join(process.cwd(), 'credenciales_estudiantes_piloto.local.json');
 if (!fs.existsSync(credsPath)) {

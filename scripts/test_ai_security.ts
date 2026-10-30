@@ -12,6 +12,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 
 // Cargar variables si existe archivo .env
 if (typeof (process as any).loadEnvFile === 'function') {
@@ -33,13 +34,17 @@ const TEST_URL =
 const TEST_SERVICE_KEY = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY || LOCAL_FALLBACK_SERVICE_ROLE_KEY;
 const TEST_ANON_KEY = process.env.SUPABASE_TEST_ANON_KEY || LOCAL_FALLBACK_ANON_KEY;
 
-// 1. Salvaguarda crítica: jamás ejecutar contra el proyecto remoto
-if (TEST_URL.includes(PILOT_PROJECT_REF)) {
-  console.error('⛔ BLOQUEO DE SEGURIDAD: TEST_URL apunta al proyecto piloto remoto wdehfetiazgukfgnngfi.');
-  process.exit(1);
-}
-if (!TEST_URL.includes('127.0.0.1') && !TEST_URL.includes('localhost')) {
-  console.error('⛔ BLOQUEO DE SEGURIDAD: Solo se permite ejecución en entorno local (127.0.0.1 / localhost).');
+// 1. Salvaguarda crítica: jamás ejecutar contra el proyecto remoto; solo loopback local
+try {
+  const parsed = new URL(TEST_URL);
+  const esHostLocal = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+  const esProtocoloLocal = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  const esPuertoLocal = !parsed.port || parsed.port === '54321' || parsed.port === '80' || parsed.port === '443';
+  if (!esHostLocal || !esProtocoloLocal || !esPuertoLocal || parsed.username || parsed.password) {
+    throw new Error(`Destino no autorizado: '${parsed.origin}'. Los scripts locales solo aceptan loopback ('127.0.0.1' o 'localhost') en puerto local esperado (54321).`);
+  }
+} catch (err: any) {
+  console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
   process.exit(1);
 }
 
@@ -101,9 +106,9 @@ async function main() {
   // Crear usuarios de prueba temporal
   const timestamp = Date.now();
   const docenteEmail = `docente_sec_${timestamp}@test.local`;
-  const docentePass = 'DocentePass123!';
+  const docentePass = process.env.TEST_DOCENTE_PASSWORD || `SecDoc_${crypto.randomBytes(12).toString('base64url')}!1`;
   const estudianteEmail = `estudiante_sec_${timestamp}@test.local`;
-  const estudiantePass = 'EstudiantePass123!';
+  const estudiantePass = process.env.TEST_ESTUDIANTE_PASSWORD || `SecEst_${crypto.randomBytes(12).toString('base64url')}!2`;
 
   let docenteUserId: string | null = null;
   let estudianteUserId: string | null = null;

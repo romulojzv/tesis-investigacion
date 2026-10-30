@@ -1,5 +1,6 @@
 // scripts/test_auth_rls.ts
 import { createClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 
 if (typeof (process as any).loadEnvFile === 'function') {
   try {
@@ -14,6 +15,28 @@ const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY) {
   console.error('ERROR: Faltan variables SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY o SUPABASE_ANON_KEY.');
   process.exit(1);
+}
+
+// Salvaguarda: Aceptar exclusivamente loopback local (127.0.0.1 o localhost) con protocolo y puerto local
+try {
+  const parsed = new URL(SUPABASE_URL);
+  const esHostLocal = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+  const esProtocoloLocal = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  const esPuertoLocal = !parsed.port || parsed.port === '54321' || parsed.port === '80' || parsed.port === '443';
+  if (!esHostLocal || !esProtocoloLocal || !esPuertoLocal || parsed.username || parsed.password) {
+    throw new Error(`Destino no autorizado: '${parsed.origin}'. Los scripts locales solo aceptan loopback ('127.0.0.1' o 'localhost') en puerto local esperado (54321).`);
+  }
+} catch (err: any) {
+  console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
+  process.exit(1);
+}
+
+function generarPasswordSegura(rol: string): string {
+  return `Test_${rol}_${crypto.randomBytes(12).toString('base64url')}!9aA`;
+}
+
+function generarPinSeguro(): string {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 // 1. Cliente Admin (para aprovisionar y limpiar con service_role)
@@ -47,8 +70,11 @@ function expect(condition: boolean, testName: string) {
 async function runTests() {
   console.log('🚀 INICIANDO SUITE DE TESTS RLS CON USUARIOS REALES DE AUTH...');
 
-  const passDoc = 'DocenteSecurePass2026!';
-  const passEst = '482910';
+  // Generación dinámica y aislada de credenciales sintéticas por usuario
+  const passDocA = process.env.TEST_DOCENTE_A_PASSWORD || generarPasswordSegura('DocA');
+  const passDocB = process.env.TEST_DOCENTE_B_PASSWORD || generarPasswordSegura('DocB');
+  const passEstA = process.env.TEST_ESTUDIANTE_A_PIN || generarPinSeguro();
+  const passEstB = process.env.TEST_ESTUDIANTE_B_PIN || generarPinSeguro();
 
   const emailDocA = `test.doc.a.${Date.now()}@cuentosmagicos.internal`;
   const emailDocB = `test.doc.b.${Date.now()}@cuentosmagicos.internal`;
@@ -65,36 +91,36 @@ async function runTests() {
     // ------------------------------------------------------------------------
     console.log('📦 Aprovisionando 4 usuarios reales...');
     const { data: uDocA } = await adminClient.auth.admin.createUser({
-      email: emailDocA, password: passDoc, email_confirm: true,
+      email: emailDocA, password: passDocA, email_confirm: true,
       app_metadata: { rol: 'docente' }, user_metadata: { nombre: 'Docente A' },
     });
     userDocAId = uDocA.user!.id;
 
     const { data: uDocB } = await adminClient.auth.admin.createUser({
-      email: emailDocB, password: passDoc, email_confirm: true,
+      email: emailDocB, password: passDocB, email_confirm: true,
       app_metadata: { rol: 'docente' }, user_metadata: { nombre: 'Docente B' },
     });
     userDocBId = uDocB.user!.id;
 
     const { data: uEstA } = await adminClient.auth.admin.createUser({
-      email: emailEstA, password: passEst, email_confirm: true,
+      email: emailEstA, password: passEstA, email_confirm: true,
       app_metadata: { rol: 'estudiante', codigo_acceso: `4A-${Date.now().toString().slice(-4)}` },
       user_metadata: { nombre: 'Estudiante A' },
     });
     userEstAId = uEstA.user!.id;
 
     const { data: uEstB } = await adminClient.auth.admin.createUser({
-      email: emailEstB, password: passEst, email_confirm: true,
+      email: emailEstB, password: passEstB, email_confirm: true,
       app_metadata: { rol: 'estudiante', codigo_acceso: `4B-${Date.now().toString().slice(-4)}` },
       user_metadata: { nombre: 'Estudiante B' },
     });
     userEstBId = uEstB.user!.id;
 
     // Conectar clientes autenticados
-    const { client: clientDocA } = await crearClienteUsuario(emailDocA, passDoc);
-    const { client: clientDocB } = await crearClienteUsuario(emailDocB, passDoc);
-    const { client: clientEstA } = await crearClienteUsuario(emailEstA, passEst);
-    const { client: clientEstB } = await crearClienteUsuario(emailEstB, passEst);
+    const { client: clientDocA } = await crearClienteUsuario(emailDocA, passDocA);
+    const { client: clientDocB } = await crearClienteUsuario(emailDocB, passDocB);
+    const { client: clientEstA } = await crearClienteUsuario(emailEstA, passEstA);
+    const { client: clientEstB } = await crearClienteUsuario(emailEstB, passEstB);
 
     // ------------------------------------------------------------------------
     // FASE 2: VERIFICACIÓN ANON (TABLAS PROTEGIDAS)

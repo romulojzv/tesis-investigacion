@@ -11,15 +11,26 @@ if (typeof process.loadEnvFile === 'function') {
   }
 }
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const docenteEmail = process.env.DOCENTE_EMAIL!;
-const docentePass = process.env.DOCENTE_PASSWORD!;
+const docenteEmail = process.env.DOCENTE_EMAIL || '';
+const docentePass = process.env.DOCENTE_PASSWORD || '';
 
-const aulaNombre = process.env.AULA_NOMBRE!;
-const aulaCodigo = process.env.AULA_CODIGO!;
+const aulaNombre = process.env.AULA_NOMBRE || '';
+const aulaCodigo = process.env.AULA_CODIGO || '';
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY || !docenteEmail || !docentePass || !aulaCodigo) {
+  console.error('ERROR: Faltan variables de entorno requeridas (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, DOCENTE_EMAIL, DOCENTE_PASSWORD, AULA_CODIGO).');
+  process.exit(1);
+}
+
+// Salvaguarda: Rechazar ejecución contra entornos de producción
+if (SUPABASE_URL.toLowerCase().includes('production') || process.env.ENVIRONMENT === 'production') {
+  console.error('⛔ SEGURIDAD: Ejecución abortada. Este script no está autorizado para ejecutarse contra entornos de producción.');
+  process.exit(1);
+}
 
 async function main() {
   console.log('=== 1. OBTENIENDO JWT DEL DOCENTE PILOTO ===');

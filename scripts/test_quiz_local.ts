@@ -27,6 +27,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 
 // Cargar variables si existe archivo .env
 if (typeof (process as any).loadEnvFile === 'function') {
@@ -51,12 +52,16 @@ const TEST_ANON_KEY = process.env.SUPABASE_TEST_ANON_KEY || LOCAL_FALLBACK_ANON_
 // ============================================================================
 // SALVAGUARDA DE SEGURIDAD LOCAL
 // ============================================================================
-if (TEST_URL.includes(PILOT_PROJECT_REF)) {
-  console.error('⛔ BLOQUEO DE SEGURIDAD: TEST_URL apunta al proyecto remoto wdehfetiazgukfgnngfi.');
-  process.exit(1);
-}
-if (!TEST_URL.includes('127.0.0.1') && !TEST_URL.includes('localhost')) {
-  console.error('⛔ BLOQUEO DE SEGURIDAD: Solo se permite ejecución en entorno local (127.0.0.1 / localhost).');
+try {
+  const parsed = new URL(TEST_URL);
+  const esHostLocal = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+  const esProtocoloLocal = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  const esPuertoLocal = !parsed.port || parsed.port === '54321' || parsed.port === '80' || parsed.port === '443';
+  if (!esHostLocal || !esProtocoloLocal || !esPuertoLocal || parsed.username || parsed.password) {
+    throw new Error(`Destino no autorizado: '${parsed.origin}'. Los scripts locales solo aceptan loopback ('127.0.0.1' o 'localhost') en puerto local esperado (54321).`);
+  }
+} catch (err: any) {
+  console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
   process.exit(1);
 }
 
@@ -124,7 +129,10 @@ async function main() {
   const docenteBEmail = `docente_b_${timestamp}@test.local`;
   const estudianteAEmail = `estudiante_a_${timestamp}@test.local`;
   const estudianteBEmail = `estudiante_b_${timestamp}@test.local`;
-  const defaultPassword = 'TestPassword123!';
+  const passDocA = `DocA_${crypto.randomBytes(12).toString('base64url')}!1`;
+  const passDocB = `DocB_${crypto.randomBytes(12).toString('base64url')}!2`;
+  const passEstA = `EstA_${crypto.randomBytes(12).toString('base64url')}!3`;
+  const passEstB = `EstB_${crypto.randomBytes(12).toString('base64url')}!4`;
 
   let docenteAId: string | null = null;
   let docenteBId: string | null = null;
@@ -150,7 +158,7 @@ async function main() {
     // 1. Docente A y Docente B
     const { data: dA, error: errDA } = await adminClient.auth.admin.createUser({
       email: docenteAEmail,
-      password: defaultPassword,
+      password: passDocA,
       email_confirm: true,
       user_metadata: { nombre: 'Docente Aula A' },
     });
@@ -164,7 +172,7 @@ async function main() {
 
     const { data: dB, error: errDB } = await adminClient.auth.admin.createUser({
       email: docenteBEmail,
-      password: defaultPassword,
+      password: passDocB,
       email_confirm: true,
       user_metadata: { nombre: 'Docente Aula B' },
     });
@@ -179,7 +187,7 @@ async function main() {
     // 2. Estudiante A y Estudiante B
     const { data: eA, error: errEA } = await adminClient.auth.admin.createUser({
       email: estudianteAEmail,
-      password: defaultPassword,
+      password: passEstA,
       email_confirm: true,
       user_metadata: { nombre: 'Estudiante Alfa' },
     });
@@ -194,7 +202,7 @@ async function main() {
 
     const { data: eB, error: errEB } = await adminClient.auth.admin.createUser({
       email: estudianteBEmail,
-      password: defaultPassword,
+      password: passEstB,
       email_confirm: true,
       user_metadata: { nombre: 'Estudiante Beta' },
     });
@@ -243,21 +251,21 @@ async function main() {
     const clientA = createClient(TEST_URL, TEST_ANON_KEY);
     const { data: sessionDA } = await clientA.auth.signInWithPassword({
       email: docenteAEmail,
-      password: defaultPassword,
+      password: passDocA,
     });
     docenteAJwt = sessionDA.session!.access_token;
 
     const clientEA = createClient(TEST_URL, TEST_ANON_KEY);
     const { data: sessionEA } = await clientEA.auth.signInWithPassword({
       email: estudianteAEmail,
-      password: defaultPassword,
+      password: passEstA,
     });
     estudianteAJwt = sessionEA.session!.access_token;
 
     const clientEB = createClient(TEST_URL, TEST_ANON_KEY);
     const { data: sessionEB } = await clientEB.auth.signInWithPassword({
       email: estudianteBEmail,
-      password: defaultPassword,
+      password: passEstB,
     });
     estudianteBJwt = sessionEB.session!.access_token;
 

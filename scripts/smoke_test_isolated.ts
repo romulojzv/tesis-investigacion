@@ -28,14 +28,16 @@ const TEST_ANON_KEY = process.env.SUPABASE_TEST_ANON_KEY;
 async function verificarEntornoAislado(): Promise<{ url: string; serviceKey: string; anonKey: string } | null> {
   // 1. Verificar si el usuario configuró explícitamente SUPABASE_TEST_URL
   if (TEST_URL) {
-    if (TEST_URL.includes(PILOT_PROJECT_REF)) {
-      console.error('⛔ BLOQUEO DE SEGURIDAD: La URL coincide con el proyecto piloto remoto.');
-      console.error('   Está terminantemente prohibido ejecutar pruebas de smoke test en el piloto.');
-      return null;
-    }
-    const esLocal = TEST_URL.includes('127.0.0.1') || TEST_URL.includes('localhost');
-    if (!esLocal) {
-      console.error('⛔ BLOQUEO DE SEGURIDAD: SUPABASE_TEST_URL no apunta a un entorno local (127.0.0.1 / localhost).');
+    try {
+      const parsed = new URL(TEST_URL);
+      const esHostLocal = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+      const esProtocoloLocal = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      const esPuertoLocal = !parsed.port || parsed.port === '54321' || parsed.port === '80' || parsed.port === '443';
+      if (!esHostLocal || !esProtocoloLocal || !esPuertoLocal || parsed.username || parsed.password) {
+        throw new Error(`Destino no autorizado: '${parsed.origin}'. Solo se permite loopback local ('127.0.0.1' o 'localhost') en puerto esperado (54321).`);
+      }
+    } catch (err: any) {
+      console.error(`⛔ BLOQUEO DE SEGURIDAD: ${err.message}`);
       return null;
     }
     return {
@@ -104,9 +106,9 @@ async function main() {
   const idCuento = `test-cuento-${timestamp}`;
 
   const emailDoc = `smoke.docente.${timestamp}@test.cuentosmagicos.internal`;
-  const passDoc = 'DocentePass123!';
-  const passEst1 = '123456';
-  const passEst2 = '654321';
+  const passDoc = process.env.TEST_DOCENTE_PASSWORD || `DocSmoke_${crypto.randomBytes(12).toString('base64url')}!1`;
+  const passEst1 = process.env.TEST_ESTUDIANTE_1_PIN || crypto.randomInt(100000, 999999).toString();
+  const passEst2 = process.env.TEST_ESTUDIANTE_2_PIN || crypto.randomInt(100000, 999999).toString();
   const codAcceso1 = `SMK1_${timestamp.toString().slice(-4)}`;
   const codAcceso2 = `SMK2_${timestamp.toString().slice(-4)}`;
 
