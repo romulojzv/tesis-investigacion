@@ -33,6 +33,9 @@ class FakeFlutterTts extends Fake implements FlutterTts {
   Future<dynamic> speak(String text, {bool focus = false}) async => 1;
   @override
   Future<dynamic> stop() async => 1;
+
+  @override
+  Future<dynamic> pause() async => 1;
 }
 
 class FakeAiService extends Fake implements AiService {}

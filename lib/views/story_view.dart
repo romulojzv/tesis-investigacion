@@ -18,6 +18,7 @@ import '../widgets/ilustracion_escena_widget.dart';
 enum StoryStatus {
   reading,
   narrating,
+  paused,
   waitingDecision,
   generatingScene,
   error,
@@ -109,7 +110,9 @@ class _StoryViewState extends State<StoryView> {
         setState(() {
           if (estado == EstadoNarracion.reproduciendo) {
             _status = StoryStatus.narrating;
-          } else if (_status == StoryStatus.narrating) {
+          } else if (estado == EstadoNarracion.pausado) {
+            _status = StoryStatus.paused;
+          } else if (_status == StoryStatus.narrating || _status == StoryStatus.paused) {
             _actualizarEstadoEscena();
           }
         });
@@ -252,12 +255,14 @@ class _StoryViewState extends State<StoryView> {
         });
       }
     } finally {
-      _controladorRevelado?.mostrarTodo();
-      if (mounted && _escenaActual.numero == escena.numero) {
-        _textoReveladoNotifier.value = escena.contenido;
-        setState(() {
-          _actualizarEstadoEscena();
-        });
+      if (_status != StoryStatus.paused && !_narracionService.estaPausado) {
+        _controladorRevelado?.mostrarTodo();
+        if (mounted && _escenaActual.numero == escena.numero) {
+          _textoReveladoNotifier.value = escena.contenido;
+          setState(() {
+            _actualizarEstadoEscena();
+          });
+        }
       }
     }
   }
@@ -271,6 +276,26 @@ class _StoryViewState extends State<StoryView> {
         _actualizarEstadoEscena();
       });
     }
+  }
+
+  Future<void> _pausarNarracion() async {
+    await _narracionService.pausar();
+    _controladorRevelado?.pausar();
+    if (mounted) {
+      setState(() {
+        _status = StoryStatus.paused;
+      });
+    }
+  }
+
+  Future<void> _reanudarNarracion() async {
+    _controladorRevelado?.reanudar();
+    if (mounted) {
+      setState(() {
+        _status = StoryStatus.narrating;
+      });
+    }
+    await _narracionService.reanudar(contenido: _escenaActual.contenido);
   }
 
   void _retroceder() {
@@ -309,7 +334,9 @@ class _StoryViewState extends State<StoryView> {
     }
 
     if (_status == StoryStatus.narrating ||
-        _narracionService.estaReproduciendo) {
+        _status == StoryStatus.paused ||
+        _narracionService.estaReproduciendo ||
+        _narracionService.estaPausado) {
       await _detenerNarracion();
       return;
     }
@@ -635,14 +662,36 @@ class _StoryViewState extends State<StoryView> {
                 ? null
                 : _narrarEscena,
             icon: Icon(
-              _status == StoryStatus.narrating
+              (_status == StoryStatus.narrating || _status == StoryStatus.paused)
                   ? Icons.stop_circle_rounded
                   : Icons.volume_up_rounded,
             ),
             label: Text(
-              _status == StoryStatus.narrating ? 'Detener' : 'Escuchar',
+              (_status == StoryStatus.narrating || _status == StoryStatus.paused)
+                  ? 'Detener'
+                  : 'Escuchar',
             ),
           ),
+
+          const SizedBox(width: 8),
+
+          if (_status == StoryStatus.narrating || _status == StoryStatus.paused) ...[
+            IconButton(
+              tooltip: _status == StoryStatus.paused
+                  ? 'Reanudar narración'
+                  : 'Pausar narración',
+              onPressed: _status == StoryStatus.paused
+                  ? _reanudarNarracion
+                  : _pausarNarracion,
+              icon: Icon(
+                _status == StoryStatus.paused
+                    ? Icons.play_circle_filled_rounded
+                    : Icons.pause_circle_filled_rounded,
+                color: const Color(0xFFE65100),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
 
           const SizedBox(width: 8),
 

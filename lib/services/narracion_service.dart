@@ -102,10 +102,13 @@ class NarracionService {
   VozInfo? _vozSeleccionada;
   double _velocidad = 0.5; // Velocidad amigable para primaria (0.0 a 1.0)
   int _indiceSegmentoActual = -1;
+  int _indiceSegmentoPausado = 0;
+  String _ultimoContenidoNarrado = '';
   List<NarracionSegmento> _segmentosActuales = [];
 
   Completer<void>? _fraseCompleter;
   bool _detencionSolicitada = false;
+  bool _pausaSolicitada = false;
 
   void Function(int indiceSegmento)? onSegmentoCambio;
   void Function(int indiceFrase)? onFraseCambio;
@@ -126,6 +129,8 @@ class NarracionService {
   List<String> get frasesActuales =>
       _segmentosActuales.map((s) => s.texto).toList();
   bool get estaReproduciendo => _estado == EstadoNarracion.reproduciendo;
+  bool get estaPausado => _estado == EstadoNarracion.pausado;
+  int get indiceSegmentoPausado => _indiceSegmentoPausado;
 
   void _configurarHandlers() {
     _tts.setCompletionHandler(() {
@@ -641,20 +646,25 @@ class NarracionService {
     int segmentoInicial = 0,
     int fraseInicial = 0,
   }) async {
-    await detener();
+    if (_estado != EstadoNarracion.pausado) {
+      await detener();
+    }
 
     final segmentos = segmentarTexto(contenido);
     if (segmentos.isEmpty) return;
 
+    _ultimoContenidoNarrado = contenido;
     _segmentosActuales = segmentos;
     _detencionSolicitada = false;
+    _pausaSolicitada = false;
     _actualizarEstado(EstadoNarracion.reproduciendo);
 
     final inicio = segmentoInicial > 0 ? segmentoInicial : fraseInicial;
     for (var i = inicio; i < _segmentosActuales.length; i++) {
-      if (_detencionSolicitada) break;
+      if (_detencionSolicitada || _pausaSolicitada) break;
 
       _indiceSegmentoActual = i;
+      _indiceSegmentoPausado = i;
       onSegmentoCambio?.call(_indiceSegmentoActual);
       onFraseCambio?.call(_indiceSegmentoActual);
 
@@ -670,22 +680,60 @@ class NarracionService {
       }
 
       // Pequeña pausa natural entre segmentos para lectura infantil
-      if (!_detencionSolicitada && i < _segmentosActuales.length - 1) {
+      if (!_detencionSolicitada && !_pausaSolicitada && i < _segmentosActuales.length - 1) {
         await Future.delayed(const Duration(milliseconds: 180));
       }
     }
 
-    if (!_detencionSolicitada) {
+    if (!_detencionSolicitada && !_pausaSolicitada) {
       _indiceSegmentoActual = -1;
+      _indiceSegmentoPausado = 0;
       onSegmentoCambio?.call(_indiceSegmentoActual);
       onFraseCambio?.call(_indiceSegmentoActual);
       _actualizarEstado(EstadoNarracion.detenido);
     }
   }
 
+  /// Pausa la narración en curso conservando la posición del segmento actual (RF-16).
+  Future<void> pausar() async {
+    if (_estado != EstadoNarracion.reproduciendo) return;
+    _pausaSolicitada = true;
+    _indiceSegmentoPausado = _indiceSegmentoActual >= 0 ? _indiceSegmentoActual : 0;
+    if (_fraseCompleter != null && !_fraseCompleter!.isCompleted) {
+      _fraseCompleter!.complete();
+    }
+    try {
+      await _tts.pause();
+    } catch (_) {
+      try {
+        await _tts.stop();
+      } catch (_) {}
+    }
+    _actualizarEstado(EstadoNarracion.pausado);
+  }
+
+  /// Reanuda la narración desde el segmento donde se pausó (RF-16).
+  Future<void> reanudar({String? contenido}) async {
+    if (_estado != EstadoNarracion.pausado) return;
+    final texto = contenido ?? _ultimoContenidoNarrado;
+    if (texto.isEmpty) {
+      _actualizarEstado(EstadoNarracion.detenido);
+      return;
+    }
+    _pausaSolicitada = false;
+    _detencionSolicitada = false;
+    _actualizarEstado(EstadoNarracion.reproduciendo);
+    await narrarEscena(
+      contenido: texto,
+      segmentoInicial: _indiceSegmentoPausado,
+    );
+  }
+
   /// Detiene la narración inmediatamente
   Future<void> detener() async {
     _detencionSolicitada = true;
+    _pausaSolicitada = false;
+    _indiceSegmentoPausado = 0;
     if (_fraseCompleter != null && !_fraseCompleter!.isCompleted) {
       _fraseCompleter!.complete();
     }
@@ -707,7 +755,9 @@ class NarracionService {
     final textoLimpio = texto.trim();
     if (textoLimpio.isEmpty) return;
 
+    _ultimoContenidoNarrado = textoLimpio;
     _detencionSolicitada = false;
+    _pausaSolicitada = false;
     _actualizarEstado(EstadoNarracion.reproduciendo);
 
     _fraseCompleter = Completer<void>();
@@ -721,7 +771,7 @@ class NarracionService {
       return;
     }
 
-    if (!_detencionSolicitada) {
+    if (!_detencionSolicitada && !_pausaSolicitada) {
       _actualizarEstado(EstadoNarracion.detenido);
     }
   }
@@ -979,6 +1029,20 @@ class ControladorReveladoTexto {
     if (_estaAnimando) {
       _iniciarTimer();
     }
+  }
+
+  /// Pausa el temporizador conservando el progreso de caracteres alcanzado.
+  void pausar() {
+    _timer?.cancel();
+    _timer = null;
+    _estaAnimando = false;
+  }
+
+  /// Reanuda el temporizador visual desde la posición alcanzada.
+  void reanudar() {
+    if (estaCompleto) return;
+    _estaAnimando = true;
+    _iniciarTimer();
   }
 
   /// Muestra inmediatamente el 100% del texto y detiene la animación.

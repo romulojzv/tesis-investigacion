@@ -1,7 +1,53 @@
+import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:tesis_investigacion/services/narracion_service.dart';
+
+class _TestManualTts extends Fake implements FlutterTts {
+  final void Function(String) onSpeak;
+  final void Function(void Function()?) onSetComp;
+  final void Function(void Function()?) onSetCancel;
+
+  _TestManualTts({
+    required this.onSpeak,
+    required this.onSetComp,
+    required this.onSetCancel,
+  });
+
+  @override
+  void setCompletionHandler(dynamic handler) => onSetComp(handler as void Function()?);
+
+  @override
+  void setCancelHandler(dynamic handler) => onSetCancel(handler as void Function()?);
+
+  @override
+  void setErrorHandler(dynamic handler) {}
+
+  @override
+  Future<dynamic> setLanguage(String language) async => 1;
+
+  @override
+  Future<dynamic> setSpeechRate(double rate) async => 1;
+
+  @override
+  Future<dynamic> setVolume(double volume) async => 1;
+
+  @override
+  Future<dynamic> setPitch(double pitch) async => 1;
+
+  @override
+  Future<dynamic> speak(String text, {bool focus = false}) async {
+    onSpeak(text);
+    return 1;
+  }
+
+  @override
+  Future<dynamic> pause() async => 1;
+
+  @override
+  Future<dynamic> stop() async => 1;
+}
 
 class FakeFlutterTts extends Fake implements FlutterTts {
   void Function()? _completionHandler;
@@ -41,6 +87,9 @@ class FakeFlutterTts extends Fake implements FlutterTts {
 
   @override
   Future<dynamic> stop() async => 1;
+
+  @override
+  Future<dynamic> pause() async => 1;
 }
 
 void main() {
@@ -590,6 +639,65 @@ void main() {
         ctrlNormal.caracteresPorSegundo,
         lessThan(ctrlRapido.caracteresPorSegundo),
       );
+    });
+
+    test('RF-16: pausar y reanudar narracion conserva segmento y transiciona estados', () async {
+      final textosHablados = <String>[];
+
+      final fakeTts = _TestManualTts(
+        onSpeak: (t) => textosHablados.add(t),
+        onSetComp: (_) {},
+        onSetCancel: (_) {},
+      );
+
+      final ttsService = NarracionService(tts: fakeTts);
+      const texto = 'Habia una vez un pequeno conejo en el bosque magico. Saltaba muy feliz entre las flores.';
+
+      // Iniciar narracion
+      unawaited(ttsService.narrarEscena(contenido: texto));
+      await Future<void>.delayed(Duration.zero);
+      expect(ttsService.estaReproduciendo, isTrue);
+      expect(ttsService.estado, EstadoNarracion.reproduciendo);
+
+      // Pausar durante la narracion
+      await ttsService.pausar();
+      expect(ttsService.estado, EstadoNarracion.pausado);
+      expect(ttsService.estaPausado, isTrue);
+      expect(ttsService.estaReproduciendo, isFalse);
+
+      // Reanudar narracion
+      unawaited(ttsService.reanudar());
+      await Future<void>.delayed(Duration.zero);
+      expect(ttsService.estaReproduciendo, isTrue);
+      expect(ttsService.estado, EstadoNarracion.reproduciendo);
+
+      // Detener
+      await ttsService.detener();
+      expect(ttsService.estado, EstadoNarracion.detenido);
+      expect(ttsService.estaReproduciendo, isFalse);
+    });
+
+    test('RF-16: ControladorReveladoTexto pausar y reanudar conserva caracteres revelados', () {
+      const texto = 'Habia una vez un dragon que vivia en una cueva encantada.';
+      final ctrl = ControladorReveladoTexto(textoCompleto: texto, velocidad: 0.5);
+
+      ctrl.iniciar();
+      ctrl.avanzarPaso(cantidad: 10);
+      final caracteresAntesPausa = ctrl.caracteresMostrados;
+      final textoAntesPausa = ctrl.textoVisible;
+
+      ctrl.pausar();
+      expect(ctrl.estaAnimando, isFalse);
+      expect(ctrl.caracteresMostrados, equals(caracteresAntesPausa));
+      expect(ctrl.textoVisible, equals(textoAntesPausa));
+
+      ctrl.reanudar();
+      expect(ctrl.estaAnimando, isTrue);
+      ctrl.avanzarPaso(cantidad: 5);
+      expect(ctrl.caracteresMostrados, equals(caracteresAntesPausa + 5));
+      expect(ctrl.textoVisible.startsWith(textoAntesPausa), isTrue);
+
+      ctrl.detener();
     });
   });
 }

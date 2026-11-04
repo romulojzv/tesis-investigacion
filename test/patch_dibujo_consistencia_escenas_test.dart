@@ -66,6 +66,13 @@ class FakeFlutterTts extends Fake implements FlutterTts {
     return 1;
   }
 
+  @override
+  Future<dynamic> pause() async {
+    isSpeaking = false;
+    _cancelHandler?.call();
+    return 1;
+  }
+
   void completarHabla() {
     isSpeaking = false;
     _completionHandler?.call();
