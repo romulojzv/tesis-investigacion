@@ -1,0 +1,408 @@
+================================================================================
+REGISTRO OFICIAL DE PRUEBAS AUTOMATIZADAS FLUTTER Y ANALISIS ESTATICO (EP3)
+================================================================================
+Fecha y Hora de Ejecucion : 2026-11-03 22:49:40
+Repositorio               : romulojzv/tesis-investigacion
+Rama                      : feature/completar-requisitos-tesis
+Commit Evaluado (HEAD)    : 704328218718cec12c619c79a9128c0fe8ce555a
+Sistema Operativo         : Windows 11 Home / Windows 10 (windows_x64)
+Flutter Version           : Flutter 3.47.6 (channel stable, revision 5fc346839b)
+Dart SDK Version          : Dart 3.13.5 (stable, windows_x64)
+Ambito de Pruebas         : test/ (Unitarias, Widgets, Controladores, Narracion RF-16, PDF)
+================================================================================
+
+--- SALIDA DE FLUTTER TEST ---
+00:00 +0: loading C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart
+00:00 +0: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Sin sesión activa renderiza LoginView
+00:00 +1: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Sin sesión activa renderiza LoginView
+00:00 +2: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Sin sesión activa renderiza LoginView
+00:00 +3: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Sin sesión activa renderiza LoginView
+00:00 +4: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Sin sesión activa renderiza LoginView
+00:01 +5: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-01: Existe sesión restaurada al iniciar + FORCE_LOGIN_ON_START=true -> se ejecuta signOut local -> LoginView aparece -> StudentHomeView NO aparece
+00:01 +6: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-01: Existe sesión restaurada al iniciar + FORCE_LOGIN_ON_START=true -> se ejecuta signOut local -> LoginView aparece -> StudentHomeView NO aparece
+00:01 +7: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-01: Existe sesión restaurada al iniciar + FORCE_LOGIN_ON_START=true -> se ejecuta signOut local -> LoginView aparece -> StudentHomeView NO aparece
+00:01 +7: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_gate_test.dart: AuthGate Widget Tests Con sesión docente renderiza TeacherHomeView
+[TeacherHomeView] Aviso cargando aulas (ej. entorno de tests): 'package:supabase_flutter/src/supabase.dart': Failed assertion: line 46 pos 7: '_instance._isInitialized': You must initialize the supabase instance before calling Supabase.instance
+00:01 +8: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-01: Existe sesión restaurada al iniciar + FORCE_LOGIN_ON_START=true -> se ejecuta signOut local -> LoginView aparece -> StudentHomeView NO aparece
+00:01 +9: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-01: Existe sesión restaurada al iniciar + FORCE_LOGIN_ON_START=true -> se ejecuta signOut local -> LoginView aparece -> StudentHomeView NO aparece
+00:02 +10: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-02: Después del signOut inicial: currentSession == null -> ningún profile anterior puede abrir StudentHomeView
+00:02 +11: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/auth_startup_test.dart: F. Tests de Regresión Auth (AUTH-START-01 a AUTH-START-07) AUTH-START-03: Login válido después del arranque -> signedIn -> carga profile nuevo -> StudentHomeView aparece
+00:03 +12: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:03 +13: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:04 +14: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:04 +15: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:04 +16: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:04 +17: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView muestra la galería solo cuando está en modo pdfImages
+00:04 +18: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView al seleccionar "Crear un diseño automáticamente" oculta la galería por completo
+00:05 +19: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView al seleccionar "Dibujar mi propio personaje" oculta la galería por completo
+00:05 +20: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 1. Descripción nueva no reutiliza descripción del cuento anterior
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-1", personajePrincipal="Pedro", descripcionPersonaje="mochila morada, pelo de colores, estatura alta"
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-2", personajePrincipal="Pedro", descripcionPersonaje="(null)"
+00:05 +21: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/character_customization_gallery_test.dart: Galería condicional en CharacterCustomizationView cambiar de pdfImages a automatic elimina e ignora la referencia visual previa
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Pepe", descripcionPersonaje="(null)", mode=CharacterMode.keepOriginal, visualMode=CharacterVisualMode.automatic
+00:06 +22: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 2. Hint de descripción no se convierte en valor real
+00:06 +23: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 2. Hint de descripción no se convierte en valor real
+00:06 +24: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 2. Hint de descripción no se convierte en valor real
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Mateo", descripcionPersonaje="(null)", mode=CharacterMode.newCharacter, visualMode=CharacterVisualMode.automatic
+00:07 +25: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 3. DB round-trip mantiene exactamente descripcionPersonaje
+00:07 +26: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 4. generar-escena y AiService reciben la descripción correcta
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-ia-test", personajePrincipal="Pedro", descripcionPersonaje="mochila morada, pelo de colores, estatura alta"
+00:07 +27: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 5. Cuento A y cuento B no mezclan descripción en repositorio
+00:07 +28: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 6. Modo automático: escena 1 usa text-to-image y escenas 2-4 usan imagen de escena 1 como referencia
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-auto-ref", personajePrincipal="Pedro", descripcionPersonaje="mochila morada, pelo de colores, estatura alta"
+00:07 +29: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 7. La referencia base no cambia entre escenas 2-4 (evita drift acumulativo)
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-no-drift", personajePrincipal="Pedro", descripcionPersonaje="mochila morada, pelo de colores, estatura alta"
+00:07 +30: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 8. Dibujo del estudiante / Imagen del PDF tienen prioridad sobre imagen generada
+00:07 +31: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 9. Cambios temporales en la escena no modifican la ficha base
+00:07 +32: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/consistencia_visual_y_descripcion_test.dart: Pruebas de consistencia visual y descripción canónica 10. Nombre Pedro no se transforma automáticamente en Pedrito
+00:07 +33: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_auth_repository_test.dart: Cuento y Repositorio con Autenticación Cuento nuevo soporta estudianteId, aulaId y esDemo
+00:07 +34: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_auth_repository_test.dart: Cuento y Repositorio con Autenticación Cuento por defecto mantiene compatibilidad histórica (esDemo=false, ids null)
+00:07 +35: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_auth_repository_test.dart: Cuento y Repositorio con Autenticación listarCuentosPorEstudiante solo retorna cuentos del alumno y excluye demos
+00:08 +36: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_repository_test.dart: Fase 0: Persistencia de personaje y round-trip de repositorio guarda y recupera fielmente personajePrincipal ("Pepe") y descripcionPersonaje por separado
+00:08 +37: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_repository_test.dart: Fase 0: Persistencia de personaje y round-trip de repositorio renameOriginal conserva la descripción original del cuento sin contaminación de newCharacter
+00:08 +38: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/cuento_repository_test.dart: Fase 0: Persistencia de personaje y round-trip de repositorio guarda y recupera múltiples escenas con sus respectivas URLs de imagen
+00:08 +39: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/document_service_test.dart: DocumentService acepta firma PDF válida
+00:08 +40: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/document_service_test.dart: DocumentService rechaza archivo sin firma PDF
+00:08 +41: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/document_service_test.dart: DocumentService rechaza PDF vacío
+00:08 +42: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/document_service_test.dart: DocumentService rechaza nombre de archivo vacío
+00:09 +43: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Diálogo de nombre crea, usa y destruye TextEditingController sin lanzar used after being disposed
+00:11 +43: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 01_inicio_sesion
+✅ Screenshot saved: 01_inicio_sesion.png (18469 bytes)
+00:11 +44: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Diálogo de nombre crea, usa y destruye TextEditingController sin lanzar used after being disposed
+00:11 +44: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 02_pantalla_principal_modo
+✅ Screenshot saved: 02_pantalla_principal_modo.png (17469 bytes)
+00:11 +45: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Diálogo de nombre crea, usa y destruye TextEditingController sin lanzar used after being disposed
+00:11 +46: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 03_creacion_personaje
+✅ Screenshot saved: 03_creacion_personaje.png (29039 bytes)
+00:11 +47: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Cancelar el diálogo de nombre y volver a abrirlo no corrompe el ciclo de vida del controller
+00:12 +47: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 04_procesamiento_pdf
+✅ Screenshot saved: 04_procesamiento_pdf.png (11824 bytes)
+00:12 +48: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Cancelar el diálogo de nombre y volver a abrirlo no corrompe el ciclo de vida del controller
+00:12 +49: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 05_personalizacion
+✅ Screenshot saved: 05_personalizacion.png (18949 bytes)
+00:12 +50: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Navegación fuera de DrawView mientras se dibuja o confirma no genera fugas de controllers
+00:12 +50: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 06_generacion_cuento
+✅ Screenshot saved: 06_generacion_cuento.png (10218 bytes)
+00:12 +51: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/draw_view_lifecycle_test.dart: DrawView Lifecycle and TextEditingController Regression Tests Navegación fuera de DrawView mientras se dibuja o confirma no genera fugas de controllers
+00:13 +52: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 07_lectura_escena_ilustracion
+✅ Screenshot saved: 07_lectura_escena_ilustracion.png (11446 bytes)
+00:13 +53: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 08_narracion_voz
+✅ Screenshot saved: 08_narracion_voz.png (12280 bytes)
+00:13 +54: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 09_seleccion_decisiones_narrativas
+✅ Screenshot saved: 09_seleccion_decisiones_narrativas.png (11446 bytes)
+00:13 +55: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 10_cuestionario_dimensiones_comprension
+✅ Screenshot saved: 10_cuestionario_dimensiones_comprension.png (17866 bytes)
+00:14 +56: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 11a_retroalimentacion_correcta
+✅ Screenshot saved: 11a_retroalimentacion_correcta.png (13409 bytes)
+00:14 +57: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 11b_retroalimentacion_incorrecta
+✅ Screenshot saved: 11b_retroalimentacion_incorrecta.png (13780 bytes)
+00:14 +58: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 12_resultado_final_cuestionario
+✅ Screenshot saved: 12_resultado_final_cuestionario.png (19824 bytes)
+00:14 +59: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:14 +59: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 13_historial_actividades
+✅ Screenshot saved: 13_historial_actividades.png (15680 bytes)
+00:15 +60: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:15 +60: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 14_panel_docente_resultados
+✅ Screenshot saved: 14_panel_docente_resultados.png (22738 bytes)
+00:15 +61: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:15 +61: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 15_boton_exportar_pdf
+✅ Screenshot saved: 15_boton_exportar_pdf.png (11446 bytes)
+00:15 +62: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:15 +62: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 16_dialogo_nativo_guardar_pdf
+✅ Screenshot saved: 16_dialogo_nativo_guardar_pdf.png (11247 bytes)
+00:15 +63: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:15 +63: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 18a_error_403_acceso_denegado
+✅ Screenshot saved: 18a_error_403_acceso_denegado.png (8238 bytes)
+00:15 +64: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:16 +64: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_capturas_reales_test.dart: 18b_error_409_respuesta_bloqueada
+✅ Screenshot saved: 18b_error_409_respuesta_bloqueada.png (7705 bytes)
+00:16 +65: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/generar_pdf_demostracion_test.dart: Generación de PDF demostrativo real para tesis con niveles 2-2-1 y explicaciones pedagógicas completas
+00:17 +66: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget esDataUri identifica correctamente prefijos data:image/
+00:17 +67: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget decodificarDataUri extrae bytes válidos
+00:17 +68: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget decodificarDataUri retorna null ante base64 corrupto
+00:17 +69: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget muestra Image.memory cuando la URL es un Data URI base64 válido y usa gaplessPlayback
+00:17 +70: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget muestra Image.memory cuando la URL es un Data URI base64 válido y usa gaplessPlayback
+00:17 +71: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget muestra Image.memory cuando la URL es un Data URI base64 válido y usa gaplessPlayback
+00:17 +72: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget muestra Image.memory cuando la URL es un Data URI base64 válido y usa gaplessPlayback
+00:17 +73: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/ilustracion_escena_widget_test.dart: IlustracionEscenaWidget muestra Image.memory cuando la URL es un Data URI base64 válido y usa gaplessPlayback
+00:17 +74: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:18 +75: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:18 +76: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:18 +77: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:18 +78: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:18 +79: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +80: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +81: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +82: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +83: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +84: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +85: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +86: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +87: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +88: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +89: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/image_architecture_test.dart: Arquitectura y ciclo de vida de imágenes por escena StoryView maneja navegación atrás/adelante sin regenerar imágenes existentes
+00:19 +90: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService 7. cambio de segmento activo
+00:19 +91: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService 7. cambio de segmento activo
+00:19 +92: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService narrarTextoCompleto envía el texto completo al TTS sin micro-fragmentación
+00:19 +93: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado acumulativo conserva exactamente el texto original
+00:19 +94: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService las letras mostradas nunca desaparecen durante avance acumulativo
+00:19 +95: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado acumulativo respeta caracteres Unicode con tildes (áéíóú) y eñes (ñ)
+00:19 +96: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado acumulativo maneja emojis sin romper grapheme clusters
+00:19 +97: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado acumulativo preserva saltos de línea y signos de puntuación
+00:19 +98: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService mostrarCompletoInmediatamente muestra la escena completa sin animación
+00:19 +99: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService finalizar la animación con mostrarTodo muestra todo inmediatamente
+00:19 +100: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService detener muestra todo o permite mostrarlo inmediatamente
+00:19 +101: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService TTS 0.25 produce revelado visual más lento que TTS 0.50
+00:19 +102: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService TTS 0.85 produce revelado visual más rápido que TTS 0.50
+00:19 +103: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService cambiar velocidad durante animación conserva progreso sin reiniciar ni retroceder
+00:19 +104: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado sigue siendo estrictamente acumulativo y monótono
+00:19 +105: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService cuando TTS termina antes que la animación, se muestra inmediatamente el texto completo
+00:19 +106: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService cuando la animación termina antes que TTS, el texto permanece completo
+00:19 +107: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService detener la narración muestra todo el texto inmediatamente
+00:19 +108: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService factorAjusteRevelado = 0.90 acelera la cadencia visual aproximadamente un 10% respecto a 1.00
+00:19 +109: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService revelado visual escala congruentemente en los tres ritmos TTS: 0.25 (lento), 0.50 (normal) y 0.85 (rápido)
+00:19 +110: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService RF-16: pausar y reanudar narracion conserva segmento y transiciona estados
+00:19 +111: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narracion_service_test.dart: NarracionService RF-16: ControladorReveladoTexto pausar y reanudar conserva caracteres revelados
+00:20 +112: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narrativa_service_test.dart: NarrativaService construye contexto ordenando escenas y agregando la decisión
+00:20 +113: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narrativa_service_test.dart: NarrativaService crea escena inicial para modo dibujo
+00:20 +114: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/narrativa_service_test.dart: NarrativaService construye contexto completo incluyendo decisiones anteriores
+00:20 +115: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: A. Flujo de dibujo y persistencia de descripcion_personaje crearCuentoInicialDemo genera y persiste descripcion_personaje no nula para dibujo
+00:20 +116: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: A. Flujo de dibujo y persistencia de descripcion_personaje derivarDescripcionVisualBase genera rasgos estables coherentes
+00:20 +117: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryController bloquea doble invocación concurrente de generarSiguienteEscena
+00:21 +118: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:21 +119: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:21 +120: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:21 +121: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:22 +122: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:22 +123: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: B. Control de doble invocación StoryView bloquea taps repetidos y realiza exactamente 1 invocación
+00:22 +124: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz Conserva y muestra la distribución 2-2-1 de niveles pedagógicos (literal, inferencial, crítico-reflexivo)
+00:22 +125: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: C. Límite de escenas (maxEscenas = 4) con maxEscenas=4, escenas 1, 2, 3 tienen esFinal=false y escena 4 tiene esFinal=true
+00:22 +126: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz Representa explicaciones pedagógicas extensas completas en múltiples líneas sin truncar texto
+00:22 +127: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: D. Consistencia de request de imagen escena 1 usa dibujo original; escena 2+ incluye referencia original + anchor de escena previa
+00:22 +128: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Decisión extensa de más de 200 caracteres se exporta completa en múltiples líneas sin truncamiento
+00:22 +128: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/patch_dibujo_consistencia_escenas_test.dart: D. Consistencia de request de imagen en cuento origen PDF, esModoDibujo se establece estrictamente en false
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pdf-test", personajePrincipal="Conejo Sabio", descripcionPersonaje="(null)"
+00:22 +129: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Decisión extensa de más de 200 caracteres se exporta completa en múltiples líneas sin truncamiento
+00:22 +130: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Decisión extensa de más de 200 caracteres se exporta completa en múltiples líneas sin truncamiento
+00:22 +131: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Portada diferencia al protagonista del lector y evita duplicar nombres
+00:22 +132: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz Ajuste de privacidad: el código de acceso nunca aparece en el PDF aunque QuizAttemptSummary lo contenga
+00:23 +133: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Nombre ausente de lector no genera etiqueta huérfana ni datos ficticios
+00:23 +134: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/pdf_export_service_test.dart: RF-30 / RF-31: Servicio de Exportación y Guardado de PDF con Validación de Quiz RF-30 / RF-31: Decisión narrativa larga (~200 caracteres) se calcula con altura dinámica y se extrae completa sin truncamiento
+00:23 +135: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Detección y Extracción de Imágenes en DocumentService 1. PDF sin imágenes produce lista vacía y estado sinImagenes
+00:23 +136: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Detección y Extracción de Imágenes en DocumentService 2. PDF con imágenes extraíbles detecta y extrae JPEG embebido
+00:23 +137: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Detección y Extracción de Imágenes en DocumentService 3. Clasifica imágenes menores a 8KB como noVerificadas inicialmente
+00:23 +138: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 1: PDF sin imágenes deshabilita opción de fotos PDF pero mantiene automático y dibujo
+00:25 +139: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta Muestra nivel de comprensión y permite seleccionar alternativa
+00:25 +140: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 2: PDF con imágenes extraíbles permite seleccionar y confirmar protagonista
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Ranj", descripcionPersonaje="(null)", mode=CharacterMode.keepOriginal, visualMode=CharacterVisualMode.pdfImages
+00:25 +141: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta Confirmar respuesta correcta muestra banner verde y explicación para primaria
+00:25 +142: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 3: PDF con imágenes decorativas permite descartarlas y ofrece diseño automático/dibujo
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Hada Verde", descripcionPersonaje="(null)", mode=CharacterMode.keepOriginal, visualMode=CharacterVisualMode.automatic
+00:26 +143: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta Inmutabilidad: respuesta confirmada bloquea cambios de selección
+00:26 +144: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 4: PDF con imágenes no verificadas exige validación al forzar modo pdfImages
+00:26 +145: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta Respuesta incorrecta muestra banner explicativo y revela alternativa correcta
+00:26 +146: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 5: PDF con protagonista textual identificado pero sin ilustraciones permite mantener, renombrar o crear
+00:26 +147: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta Reanudación: cuestionario con respuestas previas carga estado y avanza a la pendiente
+00:26 +148: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 7: Opción "Cambiar únicamente su nombre" muestra solo campo de nombre
+00:26 +149: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 7: Opción "Cambiar únicamente su nombre" muestra solo campo de nombre
+00:27 +150: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_feedback_immediate_test.dart: RF-26: Retroalimentación inmediata y persistencia por pregunta QuizView: recibe estudianteNombre del perfil autenticado y habilita exportación PDF de cuento
+00:27 +151: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 8: Opción "Crear mi propio protagonista" muestra nombre y descripción separados sin concatenar
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Pepe", descripcionPersonaje="Lleva una mochila roja.", mode=CharacterMode.newCharacter, visualMode=CharacterVisualMode.automatic
+00:27 +152: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 9: Cambiar entre modos limpia y no contamina la descripción anterior
+[DIAGNÓSTICO A] Al pulsar Continuar: nombrePersonaje="Pedro", descripcionPersonaje="(null)", mode=CharacterMode.renameOriginal, visualMode=CharacterVisualMode.automatic
+00:28 +153: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 6: Galería horizontal incluye botones laterales, scrollbar y permite avanzar
+00:28 +154: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 6: Galería horizontal incluye botones laterales, scrollbar y permite avanzar
+00:28 +155: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/personalizacion_imagenes_test.dart: Fase 3: Escenarios de Personalización y Opciones Visuales Escenario 6: Galería horizontal incluye botones laterales, scrollbar y permite avanzar
+00:28 +156: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-01: Finalizar 5 preguntas NO navega inmediatamente al Home
+00:29 +157: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 1. QuizView muestra 1 de 5 y estructura inicial
+00:30 +158: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 1. QuizView muestra 1 de 5 y estructura inicial
+00:30 +159: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-03: Resultado muestra porcentaje (20 %)
+00:30 +160: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 2. No permite avanzar sin seleccionar ninguna alternativa
+00:31 +161: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-04: Después de finalizar se pueden revisar las 5 respuestas
+00:31 +162: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-04: Después de finalizar se pueden revisar las 5 respuestas
+00:31 +163: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-04: Después de finalizar se pueden revisar las 5 respuestas
+00:31 +164: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 5. En la pregunta 5 muestra "Finalizar preguntas" y envía exactamente 5 respuestas
+00:32 +165: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 5. En la pregunta 5 muestra "Finalizar preguntas" y envía exactamente 5 respuestas
+00:32 +166: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-06: Respuesta correcta también se identifica claramente
+00:32 +167: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: QuizView Widget Tests 6. Muestra puntaje del servidor, desglose, revisión y explicaciones al finalizar
+00:32 +168: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-07: Solo botón explícito de salida vuelve al Home/Mis aventuras
+00:32 +169: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-07: Solo botón explícito de salida vuelve al Home/Mis aventuras
+00:32 +170: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: QUIZ RESULT VIEW TESTS QUIZ-RESULT-07: Solo botón explícito de salida vuelve al Home/Mis aventuras
+00:32 +171: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +171: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-01: Mantener personaje + dibujo conserva nombre/personaje original narrativo
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pato-ranj", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +172: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +172: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-02: Mantener personaje + dibujo usa PNG del estudiante como referencia visual
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pato-ranj", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +173: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +173: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-03: Descripción física original del PDF no debe sobreescribir el dibujo
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pato-ranj", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +174: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +174: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-04: Modo imagen PDF continúa funcionando con la imagen del PDF
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pdf-img", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +175: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +175: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-05: Modo automático continúa funcionando sin referencia visual fija obligatoria
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pdf-auto", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +176: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:32 +176: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: PDF + DRAWING CONSISTENCY TESTS PDF-DRAW-06: No aumenta número de llamadas a Pollinations
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-calls-check", personajePrincipal="Ranj", descripcionPersonaje="Ranj es una joven curiosa y risueña que usa falda azul."
+00:32 +177: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: StoryView Quiz Navigation Tests 9. Botón "Ir a las preguntas" llama al callback onIrEvaluacion
+00:33 +178: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-01: listarCuentosPorEstudiante devuelve resumen sin escenas, pero al abrir se llama obtenerCuento(id)
+00:33 +178: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: TeacherHomeView Quiz Results Tests 10. TeacherHomeView muestra estado vacío cuando no hay resultados
+[TeacherHomeView] Aviso cargando aulas (ej. entorno de tests): 'package:supabase_flutter/src/supabase.dart': Failed assertion: line 46 pos 7: '_instance._isInitialized': You must initialize the supabase instance before calling Supabase.instance
+00:33 +179: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-01: listarCuentosPorEstudiante devuelve resumen sin escenas, pero al abrir se llama obtenerCuento(id)
+00:33 +180: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: TeacherHomeView Quiz Results Tests 11. TeacherHomeView muestra resultados y abre diálogo de detalle
+00:33 +181: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_module_test.dart: TeacherHomeView Quiz Results Tests 11. TeacherHomeView muestra resultados y abre diálogo de detalle
+[TeacherHomeView] Aviso cargando aulas (ej. entorno de tests): 'package:supabase_flutter/src/supabase.dart': Failed assertion: line 46 pos 7: '_instance._isInitialized': You must initialize the supabase instance before calling Supabase.instance
+00:33 +182: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-03 & 04: Abrir historia no llama Gemini ni Pollinations
+00:33 +183: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-05: No permite cambiar decisiones históricas
+00:33 +184: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-06: Cuento sin Quiz muestra "Preguntas pendientes"
+00:33 +185: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-07: Quiz en progreso muestra "Preguntas en progreso"
+00:34 +186: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-08: Quiz completado muestra "Resultado: X/5 · XX %"
+00:34 +187: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-09: Quiz completado permite abrir "Ver mi resultado"
+00:34 +188: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-10 & 11: Ver resultado histórico no crea otro intento ni llama Gemini
+00:34 +189: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-12: Al terminar Quiz y volver a Mis aventuras se refresca el resultado
+00:34 +190: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-13: Abrir un cuento histórico reutiliza imágenes persistidas y NO solicita regeneración
+00:34 +191: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-14: Si una imagen histórica no existe, abrir el cuento NO llama Pollinations
+00:34 +192: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-14: Si una imagen histórica no existe, abrir el cuento NO llama Pollinations
+00:34 +193: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-14: Si una imagen histórica no existe, abrir el cuento NO llama Pollinations
+00:34 +194: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-14: Si una imagen histórica no existe, abrir el cuento NO llama Pollinations
+00:34 +195: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/quiz_history_and_drawing_test.dart: MIS AVENTURAS / HISTORIAL TESTS HISTORY-14: Si una imagen histórica no existe, abrir el cuento NO llama Pollinations
+00:35 +196: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: crea un cuento inicial correctamente
+00:35 +197: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: el cuento creado se guarda en el repositorio
+00:35 +198: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: FakeAiService devuelve análisis estructurado
+00:35 +199: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: crearCuentoDesdePdfProcesadoDemo genera primera escena con IA y opciones contextuales
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pdf-001", personajePrincipal="Ranj", descripcionPersonaje="(null)"
+00:35 +200: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: generarSiguienteEscena respeta límite de maxEscenas finalizando la historia
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-limite-001", personajePrincipal="Leo", descripcionPersonaje="(null)"
+00:35 +201: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Ranj -> Pedro mantiene Pedro durante toda la aventura y sanitiza filtraciones
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pedro-001", personajePrincipal="Pedro", descripcionPersonaje="(null)"
+00:35 +202: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: mantener Ranj sigue funcionando normalmente sin sustitución
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-ranj-001", personajePrincipal="Ranj", descripcionPersonaje="(null)"
+00:35 +203: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: personaje nuevo sigue funcionando correctamente
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-valeria-001", personajePrincipal="Valeria", descripcionPersonaje="(null)"
+00:35 +204: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: maxEscenas = 4 garantiza que la escena 4 siempre finaliza sin opciones
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-max4-001", personajePrincipal="Lucas", descripcionPersonaje="(null)"
+00:35 +205: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: asociarImagenAEscena asocia y preserva la imagen al navegar por las escenas
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-img-001", personajePrincipal="Maya", descripcionPersonaje="(null)"
+00:35 +206: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 esFinalAbierto detecta correctamente expresiones de final inconcluso
+00:35 +207: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-retry-001", personajePrincipal="Pedro", descripcionPersonaje="(null)"
+00:35 +208: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +209: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +210: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +211: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +212: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +213: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +214: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +215: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:35 +215: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_variation_and_image_composition_test.dart: Variación de Escena 1 y Composición Visual de Escenas 2-4 STORY-VAR-02 & IMG-SCENE-07: PDF / automático no se rompen
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="c-pdf", personajePrincipal="Leo", descripcionPersonaje="(null)"
+00:35 +216: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cuando la primera generación de escena 4 es abierta, StoryController reintenta y obtiene un desenlace conclusivo
+00:36 +217: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 si la IA falla en generar un desenlace cerrado en todos los intentos, StoryController lanza error y no fuerza un final falso
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-fail-001", personajePrincipal="Pedro", descripcionPersonaje="(null)"
+00:36 +218: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +219: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +220: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +221: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +221: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 renameOriginal conserva la identidad original y no marca esPersonajeNuevo
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-rename-001", personajePrincipal="Pedro", descripcionPersonaje="Un niño curioso de 8 años con capa roja y gran agilidad."
+00:36 +222: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +222: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 newCharacter se mantiene conceptualmente diferente con descripción propia
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-new-001", personajePrincipal="Valeria", descripcionPersonaje="Una astronauta inventora con traje espacial brillante y gafas mágicas."
+00:36 +223: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +223: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 nombre "Pepe" y descripción "Lleva una mochila roja" permanecen estrictamente separados sin concatenar
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pepe-001", personajePrincipal="Pepe", descripcionPersonaje="Lleva una mochila roja."
+00:36 +224: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:36 +224: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_controller_test.dart: Cierre narrativo real y validación de escena 4 cambiar a renameOriginal no hereda ni reutiliza la descripción de un personaje nuevo
+[DIAGNÓSTICO B] Al construir Cuento: cuento.id="cuento-pedro-001", personajePrincipal="Pedro", descripcionPersonaje="Un niño curioso de 8 años con capa roja."
+00:36 +225: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_narracion_imagen_test.dart: actualizaciones del texto revelado letra a letra no eliminan ni parpadean la imagen
+00:37 +226: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz No muestra botón Exportar PDF si la escena NO es final
+00:38 +227: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz No muestra botón Exportar PDF si la escena NO es final
+00:38 +228: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz No muestra botón Exportar PDF si la escena NO es final
+00:38 +229: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz Botón Exportar PDF está deshabilitado y muestra advertencia si el quiz no está completado
+00:39 +230: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/story_view_pdf_export_test.dart: RF-30 & RF-31: Botón Exportar PDF en StoryView con Control de Quiz Botón Exportar PDF está habilitado cuando el quiz está completado
+00:39 +231: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT analizarHistoria envía encabezado Authorization con Bearer token
+00:39 +232: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT analizarHistoria rechaza ejecución si no hay sesión activa
+00:39 +233: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT analizarHistoria rechaza ejecución si la sesión está expirada
+00:39 +234: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT analizarHistoria transforma HTTP 401 en StateError controlado
+[SupabaseAiService] Error HTTP 401 en analizar-historia: {error: No autorizado}
+00:39 +235: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT analizarHistoria transforma HTTP 403 en StateError de rol denegado
+[SupabaseAiService] Error HTTP 403 en analizar-historia: {error: Acceso denegado}
+00:39 +236: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT generarEscena envía encabezado Authorization con Bearer token
+00:39 +237: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT generarEscena rechaza ejecución si no hay sesión activa
+00:39 +238: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT generarEscena transforma HTTP 401 en StateError controlado
+[SupabaseAiService] Error HTTP 401 en generar-escena: {error: No autorizado}
+00:39 +239: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_ai_service_test.dart: SupabaseAiService - Seguridad y Sesión JWT generarEscena transforma HTTP 403 en StateError de rol denegado
+[SupabaseAiService] Error HTTP 403 en generar-escena: {error: Acceso denegado}
+00:40 +240: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SolicitudImagenEscena - Construcción de Prompts construirPrompt incluye reglas, estilo, protagonista y acción
+00:40 +241: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SolicitudImagenEscena - Construcción de Prompts modo dibujo incluye reglas explícitas de refinamiento suave y preservación de identidad
+00:40 +242: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SolicitudImagenEscena - Construcción de Prompts modo no dibujo (PDF/automático) NO incluye reglas de refinamiento de dibujo infantil
+00:40 +243: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService envía los parámetros esperados a generar-imagen y retorna la imageUrl
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=1, conReferencia=true, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=null, path=c123/escenas/escena_1.webp, storageGuardado=false, url=https://storage.supabase.co/cuentos/c123/escenas/escena_1.webp
+00:40 +244: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService envía esModoDibujo true cuando la solicitud es de origen dibujo
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=null, path=c123/escenas/escena_1.webp, storageGuardado=false, url=https://storage.supabase.co/cuentos/c123/escenas/escena_1.webp
+00:40 +245: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService lanza StateError si la respuesta contiene un error del backend
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=2, conReferencia=false, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Error generando ilustración: Bad state: Fallo al invocar el proveedor Pollinations: Timeout de red
+00:40 +246: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService respuesta con Data URI es aceptada y retornada correctamente
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c-data-uri, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=text_to_image, path=null, storageGuardado=false, url=Data URI (longitud 85 caracteres)
+00:40 +247: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService propaga error con detalle cuando Pollinations devuelve JSON de error
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Error generando ilustración: Bad state: Pollinations devolvió status 401: Unauthorized: Invalid API key
+00:40 +248: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService sin referencia visual NO incluye referenciaVisualBase64 en la solicitud
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c-text, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=text_to_image, path=null, storageGuardado=false, url=https://storage.supabase.co/cuentos/c-text/escenas/escena_1.webp
+00:40 +249: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService con referencia visual SÍ incluye referenciaVisualBase64 en la solicitud
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c-edits, escena=1, conReferencia=true, conAnchor=false
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=edicion_con_referencia, path=null, storageGuardado=false, url=https://storage.supabase.co/cuentos/c-edits/escenas/escena_1.webp
+00:40 +250: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService en modo dibujo para escenas 2+, referenciaVisualBase64 contiene el dibujo original como fuente de identidad y no campos inventados
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c-dibujo-esc2, escena=2, conReferencia=true, conAnchor=true
+[SupabaseImageService] Edge Function respondió HTTP status: 200
+[SupabaseImageService] Ilustración recibida con éxito: flujo=edicion_con_referencia, path=null, storageGuardado=false, url=https://storage.supabase.co/cuentos/c-dibujo-esc2/escenas/escena_2.webp
+00:40 +251: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService falla con StateError si no hay sesión de usuario activa
+00:40 +252: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService falla con StateError si la sesión de usuario expiró
+00:40 +253: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService falla con mensaje descriptivo si Edge Function retorna 401
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Error HTTP 401 en generar-imagen: {error: No autorizado}
+00:40 +254: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/supabase_image_service_test.dart: SupabaseImageService falla con mensaje descriptivo si Edge Function retorna 403
+[SupabaseImageService] Solicitando ilustración a generar-imagen: cuento=c123, escena=1, conReferencia=false, conAnchor=false
+[SupabaseImageService] Error HTTP 403 en generar-imagen: {error: Prohibido}
+00:41 +255: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: SELECTOR DE AULA (TEACHER-CLASS-01 .. 04) TEACHER-CLASS-01: docente con 1 aula la selecciona automáticamente
+00:42 +256: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: SELECTOR DE AULA (TEACHER-CLASS-01 .. 04) TEACHER-CLASS-02: docente con 2 aulas puede cambiar entre ellas
+00:42 +257: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: SELECTOR DE AULA (TEACHER-CLASS-01 .. 04) TEACHER-CLASS-03: cambiar aula cambia estudiantes y resultados
+00:43 +258: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: SELECTOR DE AULA (TEACHER-CLASS-01 .. 04) TEACHER-CLASS-04: no mezcla alumnos de aulas distintas
+00:43 +259: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-01: total matriculados correcto
+00:43 +260: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-02: participante se cuenta una sola vez aunque tenga múltiples quizzes
+00:43 +261: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-03: sin participación = matriculados - participantes únicos
+00:43 +262: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-04: porcentaje de participación correcto (ej. 3 de 4 = 75 %)
+00:43 +263: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-05: 0 alumnos produce 0 % y no error por división entre cero
+00:43 +264: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: MÉTRICAS DEL RESUMEN DEL AULA (TEACHER-METRIC-01 .. 06) TEACHER-METRIC-06: total quizzes completados cuenta intentos, no estudiantes (ej. 8 quizzes de 3 alumnos)
+00:43 +265: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: TABLA Y RESULTADOS POR ESTUDIANTE (TEACHER-STUDENT-01 .. 04) TEACHER-STUDENT-01: lista muestra cada estudiante una sola vez
+00:43 +266: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: TABLA Y RESULTADOS POR ESTUDIANTE (TEACHER-STUDENT-01 .. 04) TEACHER-STUDENT-02: contador de quizzes por estudiante correcto
+00:43 +267: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: TABLA Y RESULTADOS POR ESTUDIANTE (TEACHER-STUDENT-01 .. 04) TEACHER-STUDENT-03: seleccionar estudiante muestra únicamente sus resultados
+00:43 +268: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: TABLA Y RESULTADOS POR ESTUDIANTE (TEACHER-STUDENT-01 .. 04) TEACHER-STUDENT-04: estudiante sin resultados muestra estado vacío
+00:43 +269: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: ORDEN Y NÚMEROS DE PREGUNTA EN DETALLE (QUIZ-NUMBER-01 .. 03) QUIZ-NUMBER-01: detalle muestra exactamente preguntas 1, 2, 3, 4, 5
+00:44 +270: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: ORDEN Y NÚMEROS DE PREGUNTA EN DETALLE (QUIZ-NUMBER-01 .. 03) QUIZ-NUMBER-02: respuestas desordenadas se ordenan por numero_pregunta
+00:44 +271: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: ORDEN Y NÚMEROS DE PREGUNTA EN DETALLE (QUIZ-NUMBER-01 .. 03) QUIZ-NUMBER-03: comprobar persistencia/parsing correcto de numero_pregunta desde PostgreSQL snake_case
+00:44 +272: C:/Users/edwin/Downloads/tesisisi/avance/tesis_investigacion/test/teacher_panel_redesign_test.dart: FECHA LOCAL DOCENTE (TIME-TEACHER-01) TIME-TEACHER-01: fecha sigue usando hora local con toLocal()
+00:44 +273: All tests passed!
+
+
+--- SALIDA DE FLUTTER ANALYZE ---
+Analyzing tesis_investigacion...                                
+No issues found! (ran in 5.5s)
+
+
+Resultado Final Tests: ExitCode 0
+Resultado Final Analyze: ExitCode 0
